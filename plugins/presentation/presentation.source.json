@@ -1,0 +1,39 @@
+{
+  "schema": "aibo.presentation-package/v1",
+  "id": "dev.aibo.starter.presentation",
+  "version": "1.0.0",
+  "displayName": "Aibo starter presentation",
+  "hostApi": "1.0.0",
+  "coreSemantics": "1.0.0",
+  "snapshotSchemas": [
+    "aibo.semantic-view/v1"
+  ],
+  "resources": [
+    {
+      "path": "worker.js",
+      "mediaType": "text/javascript"
+    },
+    {
+      "path": "style.css",
+      "mediaType": "text/css"
+    }
+  ],
+  "defaultThemeId": "ocean",
+  "themes": [
+    {
+      "id": "ocean",
+      "label": "Ocean",
+      "colorScheme": "dark",
+      "tokens": {
+        "--background": "#071b2a",
+        "--foreground": "#e0f2fe",
+        "--primary": "#38bdf8",
+        "--primary-foreground": "#071b2a"
+      }
+    }
+  ],
+  "entry": "worker.js",
+  "surfaces": [
+    "controls"
+  ]
+}

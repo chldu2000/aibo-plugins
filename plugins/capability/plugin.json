@@ -1,0 +1,105 @@
+{
+  "schema": "aibo.plugin-manifest/v2",
+  "pluginId": "dev.aibo.starter.greeting",
+  "version": "1.0.0",
+  "displayName": "Aibo starter greeting",
+  "host": {
+    "min": "0.1.0",
+    "maxExclusive": "0.2.0"
+  },
+  "platforms": [
+    "darwin-arm64",
+    "darwin-x64"
+  ],
+  "protocols": {
+    "runtime": {
+      "min": "2.0",
+      "max": "2.0"
+    },
+    "semanticView": {
+      "min": "1.0",
+      "max": "1.0"
+    }
+  },
+  "contributions": [
+    {
+      "kind": "capabilityProvider",
+      "id": "dev.aibo.starter.greeting.provider",
+      "scope": "application",
+      "required": true,
+      "displayName": "Greeting provider",
+      "operations": [
+        {
+          "id": "dev.aibo.starter.greeting.read",
+          "capability": {
+            "id": "dev.aibo.starter.greeting.read",
+            "version": "1.0.0"
+          },
+          "effect": "read",
+          "permissions": [],
+          "timeoutMs": 3000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "actionId",
+              "itemId",
+              "offset"
+            ],
+            "properties": {
+              "actionId": {
+                "const": "refresh"
+              },
+              "itemId": {
+                "type": "null"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "state",
+              "view",
+              "actions"
+            ]
+          },
+          "idempotent": true
+        }
+      ]
+    },
+    {
+      "kind": "semanticView",
+      "id": "dev.aibo.starter.greeting.view",
+      "scope": "application",
+      "required": true,
+      "title": "Aibo starter greeting",
+      "extensionPoint": "command",
+      "semanticType": "detail",
+      "contractVersion": "1.0.0",
+      "visibility": "always",
+      "provider": {
+        "capability": "dev.aibo.starter.greeting.read",
+        "version": {
+          "min": "1.0.0",
+          "maxExclusive": "2.0.0"
+        },
+        "operation": "dev.aibo.starter.greeting.read"
+      }
+    }
+  ],
+  "entrypoint": {
+    "executable": "dist/worker.js"
+  },
+  "executableDependencies": [
+    {
+      "kind": "runtime",
+      "name": "node",
+      "versionRange": ">=22",
+      "required": true
+    }
+  ]
+}

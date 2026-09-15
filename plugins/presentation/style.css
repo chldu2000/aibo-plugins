@@ -1,0 +1,5 @@
+.status { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font: 12px/1.4 system-ui, sans-serif; color: #e0f2fe; background: #071b2a; }
+.status-running { color: #38bdf8; }
+.status-attention { color: #fbbf24; }
+.status-danger { color: #fb7185; }
+.status-muted { opacity: 0.65; }
