@@ -58,10 +58,11 @@ export function additionalInstructionsFromSettings(settings) {
 }
 
 export class CursorSession {
-  constructor({ transportFactory = options => new AcpTransport(options), emit = () => {}, pluginVersion = '0.1.0' } = {}) {
+  constructor({ transportFactory = options => new AcpTransport(options), emit = () => {}, pluginVersion = '0.1.0', cancelGraceMs = 5_000 } = {}) {
     this.transportFactory = transportFactory;
     this.emit = emit;
     this.pluginVersion = pluginVersion;
+    this.cancelGraceMs = cancelGraceMs;
     this.pendingInteractions = new Map();
     this.tools = new Map();
     this.completedTools = new Set();
@@ -144,6 +145,10 @@ export class CursorSession {
       this.#event(status === 'failed' ? 'turn.failed' : 'turn.completed', { status, stopReason: stopReason ?? null });
       return { status, recovery: this.recovery() };
     } catch (error) {
+      if (this.phase === 'cancelling') {
+        this.#event('turn.completed', { status: 'interrupted', stopReason: 'cancelled', forced: true });
+        return { status: 'interrupted', recovery: this.recovery() };
+      }
       this.#event('turn.failed', { status: 'failed', message: String(error?.message ?? error).slice(0, 2_000) });
       if (this.transport && !this.transport.closed) await this.transport.close();
       throw error;
@@ -157,14 +162,17 @@ export class CursorSession {
 
   async cancel() {
     if (!this.sessionId || this.phase !== 'prompting') return { accepted: true };
-    for (const pending of this.pendingInteractions.values()) this.transport.respond(pending.rpcId, { outcome: { outcome: 'cancelled' } });
+    for (const [requestId, pending] of this.pendingInteractions) {
+      this.transport.respond(pending.rpcId, { outcome: { outcome: 'cancelled' } });
+      this.#event(pending.kind === 'question' ? 'user_input.resolved' : 'approval.resolved', { requestId, decision: 'cancel' }, { requestId, ...(pending.kind === 'permission' ? { approvalId: pending.rpcId } : {}) });
+    }
     this.pendingInteractions.clear();
     this.phase = 'cancelling';
     this.transport.notify('session/cancel', { sessionId: this.sessionId });
     clearTimeout(this.cancelTimer);
     this.cancelTimer = setTimeout(() => {
       if (this.phase === 'cancelling') void this.transport?.close();
-    }, 5_000);
+    }, this.cancelGraceMs);
     this.cancelTimer.unref?.();
     return { accepted: true };
   }

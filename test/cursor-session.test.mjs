@@ -22,7 +22,7 @@ class FakeTransport {
   respondError(id,code,message) { this.responses.push({id,error:{code,message}}); }
   emitRequest(message) { for (const handler of this.requestHandlers) handler(message); }
   emitNotification(message) { for (const handler of this.notificationHandlers) handler(message); }
-  async close() { this.closed=true; }
+  async close() { this.closed=true;this.rejectPrompt?.(new Error('transport closed')); }
   failPrompt(error=new Error('ACP failed')) { this.rejectPrompt?.(error); }
 }
 
@@ -145,7 +145,44 @@ test('prompt transport failure closes the generation and host close stays stoppe
   await second.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
   const pending=second.prompt({text:'close',turnId:'turn-close'});await Promise.resolve();
   await second.close();
-  secondTransport.failPrompt(new Error('closed by host'));
-  await assert.rejects(pending,/closed by host/);
+  await assert.rejects(pending,/transport closed/);
   assert.equal(second.phase,'stopped');
+});
+
+test('强制取消关闭传输、结算交互并返回 interrupted', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event),cancelGraceMs:5});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:editProfile,recovery:null,permissions:['workspace.read','workspace.write']});
+  const turn=session.prompt({text:'wait',turnId:'turn-cancel',writable:true});await Promise.resolve();
+  transport.emitRequest({jsonrpc:'2.0',id:'approval',method:'session/request_permission',params:{sessionId:'cursor-session-1',toolCall:{toolCallId:'edit',title:'Edit'},options:[{optionId:'allow',kind:'allow_once'}]}});
+  transport.emitRequest({jsonrpc:'2.0',id:'question',method:'cursor/ask_question',params:{sessionId:'cursor-session-1',questions:[{id:'q',options:[],allowMultiple:false}]}});
+  await session.cancel();
+  assert.deepEqual(transport.notifications.at(-1),{method:'session/cancel',params:{sessionId:'cursor-session-1'}});
+  assert.equal(transport.responses.filter(response=>response.result?.outcome?.outcome==='cancelled').length,2);
+  await new Promise(resolve=>setTimeout(resolve,15));
+  assert.equal(transport.closed,true);
+  assert.equal((await turn).status,'interrupted');
+  assert.equal(events.filter(event=>event.type==='turn.completed').length,1);
+  assert.equal(events.filter(event=>event.type==='turn.failed').length,0);
+  assert.equal(events.filter(event=>event.type==='approval.resolved').length,1);
+  assert.equal(events.filter(event=>event.type==='user_input.resolved').length,1);
+});
+
+test('计划和多选问题按带类型请求 ID 独立闭环', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:editProfile,recovery:null,permissions:['workspace.read','workspace.write']});
+  const turn=session.prompt({text:'plan',turnId:'turn-interactions',writable:true});await Promise.resolve();
+  transport.emitRequest({jsonrpc:'2.0',id:1,method:'cursor/create_plan',params:{sessionId:'cursor-session-1',name:'Plan',plan:'1. Inspect\n2. Edit'}});
+  transport.emitRequest({jsonrpc:'2.0',id:'1',method:'cursor/ask_question',params:{sessionId:'cursor-session-1',questions:[{id:'files',prompt:'Files?',options:[{id:'a',label:'A'},{id:'b',label:'B'}],allowMultiple:true}]}});
+  const plan=events.find(event=>event.type==='approval.requested'&&event.payload.kind==='plan');
+  const question=events.find(event=>event.type==='user_input.requested');
+  assert.notEqual(plan.payload.requestId,question.payload.requestId);
+  session.respondApproval(plan.payload.requestId,'accept');
+  session.respondUserInput(question.payload.requestId,{files:['a','b']});
+  assert.deepEqual(transport.responses.find(response=>response.id===1),{id:1,result:{outcome:{outcome:'accepted'}}});
+  assert.deepEqual(transport.responses.find(response=>response.id==='1'),{id:'1',result:{outcome:{outcome:'answered',answers:[{questionId:'files',selectedOptionIds:['a','b']}]}}});
+  assert.ok(events.some(event=>event.type==='extension.updated'&&event.payload.kind==='plan'&&event.payload.plan.includes('Inspect')));
+  transport.finishPrompt({stopReason:'end_turn'});
+  assert.equal((await turn).status,'completed');
 });
