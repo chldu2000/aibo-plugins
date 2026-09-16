@@ -5,7 +5,7 @@ export const CAPABILITIES = [
   'stream.text', 'approval.respond', 'user-input.respond',
 ];
 
-const RECOVERY_SCHEMA = 'dev.aibo.cursor.recovery/v1';
+const RECOVERY_SCHEMA = 'dev.aibo.cursor.recovery';
 const MODE_BY_INTERACTION = { ask: 'ask', plan: 'plan', edit: 'agent' };
 
 function pluginError(kind, message) { return Object.assign(new Error(message), { kind }); }
@@ -189,7 +189,7 @@ export class CursorSession {
 
   snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: CAPABILITIES }; }
   recovery() {
-    return { schema: RECOVERY_SCHEMA, nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId };
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId } };
   }
 
   async close() {
@@ -220,9 +220,10 @@ export class CursorSession {
 
   #validateRecovery(value, workspaceId, workspacePath) {
     const recovery = object(value);
-    if (recovery.schema !== RECOVERY_SCHEMA || typeof recovery.nativeSessionId !== 'string') throw pluginError('invalid_input', 'Invalid Cursor recovery data');
-    if (recovery.workspaceId !== workspaceId || recovery.workspacePath !== workspacePath) throw pluginError('permission_denied', 'Cursor recovery belongs to another workspace');
-    return recovery;
+    const data = object(recovery.data);
+    if (recovery.schema !== RECOVERY_SCHEMA || recovery.version !== 1 || typeof data.nativeSessionId !== 'string') throw pluginError('invalid_input', 'Invalid Cursor recovery data');
+    if (data.workspaceId !== workspaceId || data.workspacePath !== workspacePath) throw pluginError('permission_denied', 'Cursor recovery belongs to another workspace');
+    return data;
   }
 
   #handleRequest(message) {

@@ -67,6 +67,7 @@
 - [x] 本仓库 `pnpm run verify` 通过，且已包含新增 Cursor 测试和构建检查。
 - [ ] 受影响宿主若有改动，执行其 `pnpm run verify`、相关 Rust/会话测试与原生探针。
 - [ ] 从 Applications 启动 Aibo，独立安装 Cursor 包；缺依赖、启用、禁用、卸载时轮盘入口正确变化。
+- [x] 隔离 `tauri dev` 实例安装、启用并发现 Cursor provider，创建会话且消息进入 Timeline；Cursor 服务连续返回 `resource_exhausted`，未据此冒充成功轮次或完整 UI 验收。
 - [ ] 验证固定绑定会话在插件不可用时明确报错，不切换其他 provider。
 - [ ] 双皮肤验证消息、工具、审批、提问、计划、取消和错误；现有 presentation 包默认继承正常。
 - [ ] 每个 manifest 宣告的平台均有真实安装、执行、恢复证据；删去未验证平台。

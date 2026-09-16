@@ -75,7 +75,7 @@ test('问题响应校验选项，恢复绑定工作区并隔离历史回放', as
   const transport = new FakeTransport();
   const events=[];
   const session = new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
-  const recovery={schema:'dev.aibo.cursor.recovery/v1',nativeSessionId:'old-session',workspaceId:'w1',workspacePath:'/workspace',protocolVersion:1,modeId:'ask'};
+  const recovery={schema:'dev.aibo.cursor.recovery',version:1,data:{nativeSessionId:'old-session',workspaceId:'w1',workspacePath:'/workspace',protocolVersion:1,modeId:'ask'}};
   await session.open({mode:'resume',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery,permissions:['workspace.read']});
   assert.equal(session.sessionId,'old-session');
   assert.ok(transport.requests.some(request=>request.method==='session/load'));

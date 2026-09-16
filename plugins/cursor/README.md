@@ -13,6 +13,8 @@ Supported execution profiles:
 - Ask and Plan: read-only filesystem, commands and network disabled, no approval reviewer.
 - Edit: workspace-write filesystem, approved commands, network disabled, user/on-request approval.
 
+The current Aibo host classifies third-party providers as an unnegotiated enforcement backend and therefore dispatches only its restricted Ask profile to this plugin. Edit support is implemented at the plugin boundary but requires host enforcement negotiation before it is available in the Aibo UI.
+
 This release intentionally rejects full-access, automatic review, model selection, reasoning selection and attachments. It does not import Cursor Desktop conversations or expose Aibo tools as MCP tools.
 
 Build from the repository root with `pnpm run verify`, then install the emitted `cursor` directory from Aibo's capability plugin manager.

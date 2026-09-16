@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-状态：`0.1.1` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证，Aibo 桌面安装验收待完成。决策日期：2026-09-16。
+状态：`0.1.2` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-16。
 
 本项目采用 **Cursor CLI ACP** 作为本地 Cursor 会话的唯一首版后端：Aibo → Runtime 2.1 能力 Worker → `agent acp`。此前[能力调查](cursor-integration-research.md)用于背景比较；其中 SDK 优先级建议不再代表本项目选型。执行任务见[实现与验收 checklist](cursor-acp-checklist.md)。
 
@@ -57,7 +57,7 @@ contribution 必须是 session scope 的 capabilityProvider，并声明 `aibo.se
 
 会话身份取自 invocation.scope；工作区 ID、绝对路径、权限、turnId、settings 取自可信 context。拒绝 input 伪造身份、跨会话操作和已有绑定的工作区替换。写轮次需独立验证 `workspace.write`，不能仅凭 Cursor mode 判断已获授权。
 
-建议沿用内置基线：open/close/cancel operation timeout 15 秒、turn 12 小时、交互响应 120 秒；ACP 内部握手 deadline 必须小于 open 总 deadline，避免串联超时失控。长轮次不因暂时没有文本而误判失败。
+close/cancel operation timeout 为 15 秒、turn 为 12 小时、交互响应为 120 秒。真实冷启动可能超过 14 秒，因此 open 总时限为 120 秒，ACP new/load 内部时限为 90 秒。长轮次不因暂时没有文本而误判失败。
 
 ## 4. ACP 启动与状态机
 
@@ -143,12 +143,11 @@ recovery 是插件私有、版本化 JSON 对象，建议字段：
 
 | 字段 | 目的 |
 | --- | --- |
-| schema = `dev.aibo.cursor.recovery/v1` | 拒绝未知格式，不与宿主 binding schema 混用 |
-| nativeSessionId | 唯一 Cursor sessionId |
-| workspaceId、workspacePath | 与可信 context 核对，拒绝换工作区恢复 |
-| protocolVersion、agentVersion | 兼容诊断；不代替重启后握手 |
-| modeId、modelId（可空） | 重连后重新协商并验证选择 |
-| executionProfile 摘要 | 防止恢复时静默放宽策略；与宿主权威配置核对 |
+| schema = `dev.aibo.cursor.recovery`、version = 1 | 符合宿主 `{schema,version,data}` 外壳并拒绝未知格式 |
+| data.nativeSessionId | 唯一 Cursor sessionId |
+| data.workspaceId、data.workspacePath | 与可信 context 核对，拒绝换工作区恢复 |
+| data.protocolVersion | 兼容诊断；不代替重启后握手 |
+| data.modeId | 重连后重新协商并验证选择 |
 
 不要保存进程 PID、RPC pending、凭据、完整聊天或“流 offset”。ACP 本路径未承诺可重连的事件 offset。宿主负责 release/contribution 固定绑定，recovery 不选择另一个安装版本。
 

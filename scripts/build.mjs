@@ -7,7 +7,7 @@ const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo')
 const hostPath = (...parts) => path.join(aibo, ...parts);
 
 /** Build actual SDK tarballs and a separate consumer; no workspace links or app imports. */
-async function buildExternalPlugin() {
+export async function buildExternalPlugin() {
   await mkdir(path.join(project,'dist'),{recursive:true});
   const root=await mkdtemp(path.join(project,'dist','build-'));
   const cache=path.join(root,'npm-cache');
@@ -52,5 +52,7 @@ async function buildExternalPlugin() {
   return {capability:capability.packagePath,cursor:cursor.packagePath,presentation:presentationPath};
 }
 
-try { console.log(JSON.stringify(await buildExternalPlugin(), null, 2)); }
-catch (error) { console.error(error); process.exitCode = 1; }
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  try { console.log(JSON.stringify(await buildExternalPlugin(), null, 2)); }
+  catch (error) { console.error(error); process.exitCode = 1; }
+}
