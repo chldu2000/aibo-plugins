@@ -1,0 +1,216 @@
+{
+  "schema": "aibo.plugin-manifest/v2",
+  "pluginId": "dev.aibo.cursor",
+  "version": "0.1.0",
+  "displayName": "Cursor",
+  "description": "Cursor Agent sessions through the official ACP interface.",
+  "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
+  "platforms": ["darwin-arm64", "darwin-x64"],
+  "protocols": { "runtime": { "min": "2.1", "max": "2.1" } },
+  "entrypoint": { "executable": "worker.mjs" },
+  "executableDependencies": [
+    { "kind": "runtime", "name": "node", "versionRange": ">=22", "required": true },
+    { "kind": "executable", "name": "agent", "required": true }
+  ],
+  "contributions": [
+    {
+      "kind": "capabilityProvider",
+      "id": "dev.aibo.cursor.agent",
+      "scope": "session",
+      "required": true,
+      "displayName": "Cursor",
+      "settings": {
+        "schema": "aibo.agent-settings/v1",
+        "version": 1,
+        "title": "Cursor 设置",
+        "description": "每次发送消息时应用；会话设置覆盖项目设置，项目设置覆盖全局设置。",
+        "scopes": ["application", "workspace", "session"],
+        "fields": [
+          {
+            "key": "additionalInstructions",
+            "label": "附加指令",
+            "description": "在发送给 Cursor 的每条消息前附加这些指令。",
+            "type": "multiline",
+            "default": "",
+            "maxLength": 8000
+          }
+        ]
+      },
+      "operations": [
+        {
+          "id": "dev.aibo.cursor.session.open",
+          "capability": { "id": "aibo.session.open", "version": "1.0.0" },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "executionProfile"],
+            "properties": {
+              "mode": { "enum": ["create", "resume"] },
+              "executionProfile": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schema": { "type": "string" },
+                  "interactionMode": { "enum": ["ask", "plan", "edit"] },
+                  "approvalPolicy": { "type": "string" },
+                  "approvalReviewer": { "enum": ["user", "auto-review", "none"] },
+                  "filesystemPolicy": { "type": "string" },
+                  "commandPolicy": { "type": "string" },
+                  "networkPolicy": { "type": "string" },
+                  "model": { "type": ["string", "null"] },
+                  "reasoningEffort": { "type": ["string", "null"] }
+                }
+              },
+              "recovery": { "type": ["object", "null"] }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": ["nativeSessionId", "recovery", "capabilities"],
+            "properties": {
+              "nativeSessionId": { "type": "string", "minLength": 1 },
+              "recovery": { "type": "object" },
+              "capabilities": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 30000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.session.turn",
+          "capability": { "id": "aibo.session.turn", "version": "1.0.0" },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "minLength": 1, "maxLength": 200000 },
+              "attachments": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": ["status", "recovery"],
+            "properties": {
+              "status": { "enum": ["completed", "interrupted", "failed"] },
+              "recovery": { "type": ["object", "null"] }
+            }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 43200000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.session.turn.write",
+          "capability": { "id": "aibo.session.turn.write", "version": "1.0.0" },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "minLength": 1, "maxLength": 200000 },
+              "attachments": { "type": "array", "maxItems": 100, "items": { "type": "object" } }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": ["status", "recovery"],
+            "properties": {
+              "status": { "enum": ["completed", "interrupted", "failed"] },
+              "recovery": { "type": ["object", "null"] }
+            }
+          },
+          "effect": "write",
+          "permissions": ["workspace.read", "workspace.write"],
+          "timeoutMs": 43200000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.session.cancel",
+          "capability": { "id": "aibo.session.cancel", "version": "1.0.0" },
+          "inputSchema": { "type": "object", "additionalProperties": false },
+          "outputSchema": {
+            "type": "object",
+            "required": ["accepted"],
+            "properties": { "accepted": { "const": true } }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 15000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.session.close",
+          "capability": { "id": "aibo.session.close", "version": "1.0.0" },
+          "inputSchema": { "type": "object", "additionalProperties": false },
+          "outputSchema": {
+            "type": "object",
+            "required": ["accepted"],
+            "properties": { "accepted": { "const": true } }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 15000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.operation.approval",
+          "capability": { "id": "dev.aibo.cursor.approval.respond", "version": "1.0.0" },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["requestId", "decision"],
+            "properties": {
+              "requestId": { "type": "string", "minLength": 1 },
+              "decision": { "enum": ["accept", "cancel"] }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resolved", "recovery", "capabilities"],
+            "properties": {
+              "resolved": { "const": true },
+              "recovery": { "type": ["object", "null"] },
+              "capabilities": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 120000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.operation.user-input",
+          "capability": { "id": "dev.aibo.cursor.user-input.respond", "version": "1.0.0" },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["requestId", "answers"],
+            "properties": {
+              "requestId": { "type": "string", "minLength": 1 },
+              "answers": { "type": "object" }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["resolved", "recovery", "capabilities"],
+            "properties": {
+              "resolved": { "const": true },
+              "recovery": { "type": ["object", "null"] },
+              "capabilities": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "effect": "read",
+          "permissions": ["workspace.read"],
+          "timeoutMs": 120000,
+          "idempotent": false
+        }
+      ]
+    }
+  ]
+}

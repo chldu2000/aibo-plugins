@@ -1,0 +1,18 @@
+# Aibo Cursor Agent
+
+This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
+
+Prerequisites:
+
+- Cursor CLI `2026.09.10-fd3934a` or a compatible release.
+- Run `agent login` before starting Aibo.
+- Node.js 22 or newer.
+
+Supported execution profiles:
+
+- Ask and Plan: read-only filesystem, commands and network disabled, no approval reviewer.
+- Edit: workspace-write filesystem, approved commands, network disabled, user/on-request approval.
+
+This release intentionally rejects full-access, automatic review, model selection, reasoning selection and attachments. It does not import Cursor Desktop conversations or expose Aibo tools as MCP tools.
+
+Build from the repository root with `pnpm run verify`, then install the emitted `cursor` directory from Aibo's capability plugin manager.
