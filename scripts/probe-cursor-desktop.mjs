@@ -8,6 +8,7 @@ import { buildExternalPlugin } from './build.mjs';
 if(process.platform!=='darwin')throw Error('Cursor desktop probe currently supports macOS only');
 const project=fileURLToPath(new URL('../',import.meta.url));
 const aibo=path.resolve(process.env.AIBO_ROOT??path.join(project,'../aibo'));
+const contractOnly=process.argv.includes('--contract-only');
 process.chdir(aibo);
 const {createServer}=await import(pathToFileURL(path.join(aibo,'node_modules/vite/dist/node/index.js')).href);
 const built=await buildExternalPlugin();
@@ -17,7 +18,7 @@ let finish;
 const report=new Promise(resolve=>finish=resolve);
 const clientPath=path.join(project,'scripts/probe-cursor-desktop-client.mjs');
 const server=await createServer({root:aibo,server:{host:'127.0.0.1',port:0,strictPort:false,fs:{allow:[aibo,project]}},plugins:[{name:'cursor-desktop-probe',configureServer(vite){
-  vite.middlewares.use('/__cursor_probe_config',(_req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({workspacePath,packagePath:built.cursor}));});
+  vite.middlewares.use('/__cursor_probe_config',(_req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({workspacePath,packagePath:built.cursor,contractOnly}));});
   vite.middlewares.use('/__cursor_probe_report',(req,res)=>{let text='';req.on('data',chunk=>text+=chunk);req.on('end',()=>{try{finish(JSON.parse(text));res.end('ok');}catch{res.statusCode=400;res.end('bad report');}});});
   vite.middlewares.use('/cursor-probe.html',(_req,res)=>{res.setHeader('Content-Type','text/html');res.end(`<!doctype html><html><body><pre>Cursor probe</pre><script type="module" src="/@fs/${clientPath}"></script></body></html>`);});
 }}]});

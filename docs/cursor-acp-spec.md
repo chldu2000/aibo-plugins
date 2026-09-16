@@ -1,12 +1,12 @@
 # Cursor ACP 接入实现规格
 
-状态：`0.1.5` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-16。
+状态：`0.1.6` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证；已对齐 Aibo `dd2a458` 的宿主持久队列合同。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-17。
 
 本项目采用 **Cursor CLI ACP** 作为本地 Cursor 会话的唯一首版后端：Aibo → Runtime 2.1 能力 Worker → `agent acp`。此前[能力调查](cursor-integration-research.md)用于背景比较；其中 SDK 优先级建议不再代表本项目选型。执行任务见[实现与验收 checklist](cursor-acp-checklist.md)。
 
 ## 1. 基线、目标与范围
 
-已读取本仓库最新[插件开发文档](plugin-development.md)，并对照相邻 `../aibo` 的 HEAD `0d729ff`。实现时如宿主前进，应重新核对合同。协议版本分别为 Manifest v2、Runtime 2.1、会话能力 1.0.0；它们与插件 release、settings.version、ACP protocolVersion 分别管理。
+已读取本仓库最新[插件开发文档](plugin-development.md)，并对照相邻 `../aibo` 的 HEAD `dd2a458`。实现时如宿主前进，应重新核对合同。协议版本分别为 Manifest v2、Runtime 2.1、会话能力 1.0.0；它们与插件 release、settings.version、ACP protocolVersion 分别管理。
 
 目标：安装独立能力插件后，新建会话轮盘出现 Cursor；用户能在工作区持续对话、查看流式输出和工具活动、回答问题、审批操作、取消执行，并在 Aibo 重启后恢复同一 Cursor 会话。
 
@@ -54,6 +54,14 @@ contribution 必须是 session scope 的 capabilityProvider，并声明 `aibo.se
 后两项沿用宿主对应交互合同，输出 `{resolved:true,recovery,capabilities}`，且需验证宿主的 `approval.respond` / `user-input.respond` 能解析到本 provider 的 operation。不能只添加 capability 标签，或复制 Codex 的 `ext.dev.aibo.codex.*` 路由。
 
 首版报告的会话语义能力：`session.create`、`session.close`、`turn.send`、`turn.cancel`、`stream.text`、`approval.respond`、`user-input.respond`；`session.resume` 需 initialize 的 loadSession 支持并通过恢复验收。可安装版本必须通过恢复门槛。不宣告没有实现的 model/service-tier/fork 等能力。
+
+### 3.1 宿主持久队列
+
+Aibo `dd2a458` 起依据固定 release 的标准合同派生 `queue.manage`。本插件的 Runtime 固定为 2.1，且 `aibo.session.open`、`aibo.session.turn`、`aibo.session.cancel`、`aibo.session.close` 的 schema、effect 与 permissions 和 `contracts/session-capabilities.v1.json` 完全一致，因此无需实现或报告原生队列能力即可使用宿主持久 FIFO 队列。等待项身份、附件归属、revision、暂停/恢复和 uncertain 处理均由宿主负责；插件仍只接收宿主经正常准入派发的普通 turn。
+
+本版本不支持运行中原生 steering。`CAPABILITIES` 不包含 `queue.manage` 或 `queue.steer`，manifest 也不声明 `dev.aibo.cursor.queue.manage` 操作。运行中的 follow-up 等当前回合完全结算后再发送；空闲 send-now 仍由宿主发起普通 turn。不得仅添加能力字符串或空操作来开启 `queue.steer`，因为 ACP 尚无已验证的“已接收/明确未接收”确认语义。
+
+目标恢复和子 Agent 历史同样保持未宣告：Cursor ACP 当前事件不满足 Aibo goal/subagent 的共享合同，不把普通计划、task 或 tool 事件伪装为 `goal.updated`、`subagent.updated` 或 `subagent.message`。
 
 会话身份取自 invocation.scope；工作区 ID、绝对路径、权限、turnId、settings 取自可信 context。拒绝 input 伪造身份、跨会话操作和已有绑定的工作区替换。写轮次需独立验证 `workspace.write`，不能仅凭 Cursor mode 判断已获授权。
 
@@ -173,12 +181,13 @@ Cursor 可读取本机项目/用户 MCP 配置；支持范围与授权绕过风�
 
 ## 10. 权威本地参考与证据要求
 
-除本仓库开发指南外，以下路径相对 `../aibo`（本次均以 `0d729ff` 为基线）：
+除本仓库开发指南外，以下路径相对 `../aibo`（本次均以 `dd2a458` 为基线）：
 
 - `docs/plugin-development_zh.md`、`contracts/plugin-manifest.v2.schema.json`。
 - `contracts/session-capabilities.v1.json`、`contracts/session-event.v1.schema.json`、`contracts/session-binding.v2.schema.json`、`contracts/execution-profile.v1.schema.json`。
 - `packages/plugin-protocol/src/session.ts`、`packages/capability-runtime/`。
 - `src-tauri/capability-plugins/session-provider.mjs`、`src-tauri/capability-plugins/codex/{plugin.json,worker.mjs,engine.mjs}`：行为参考，不是可导入的公共 SDK。
 - `src-tauri/src/session_host.rs`、`session_tools.rs`、`session_host_tests.rs`：路由、交互和固定绑定。
+- `docs/message-queue.md`、`src-tauri/src/session_contract.rs`、`session_queue.rs`：标准生命周期派生队列、原生 steering 协商及 uncertain 边界。
 
 外部链接核对日期 2026-09-16。ACP 通用协议有某字段不代表当前 Cursor CLI 已实现。发布证据必须记录 CLI 精确版本、宿主提交、OS/架构、脱敏协商结果与真机结果；本规格没有运行登录、模型请求或修改用户工作区的探针。

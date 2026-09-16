@@ -20,7 +20,7 @@ async function prompt(sessionId,workspaceId,text){
   }
 }
 
-try {
+async function run(){try {
   const config=await(await fetch('/__cursor_probe_config')).json();
   const workspace=await invoke('add_workspace',{path:config.workspacePath});
   await invoke('set_workspace_trust',{workspaceId:workspace.id,trusted:true});
@@ -32,6 +32,15 @@ try {
   if(!listed?.enabled||!provider)throw Error('Cursor provider was not discovered after installation');
   const session=await invoke('create_agent_session',{workspaceId:workspace.id,agentId:'dev.aibo.cursor.agent',installationId:installation.id,requestedProfile:null});
   if(!session.capabilities.includes('turn.send')||!session.capabilities.includes('session.resume'))throw Error(`Cursor capabilities missing: ${JSON.stringify(session.capabilities)}`);
+  if(!session.capabilities.includes('queue.manage'))throw Error(`Host queue capability missing: ${JSON.stringify(session.capabilities)}`);
+  if(session.capabilities.includes('queue.steer'))throw Error(`Cursor unexpectedly negotiated native steering: ${JSON.stringify(session.capabilities)}`);
+  if(config.contractOnly){
+    await invoke('close_agent_session',{sessionId:session.id});
+    await invoke('set_agent_plugin_enabled',{id:installation.id,enabled:false});
+    await invoke('uninstall_agent_plugin',{id:installation.id});
+    await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,mode:'contract-only',pluginVersion:listed.version,sessionId:session.id,capabilities:session.capabilities})});
+    return;
+  }
   const completed=await prompt(session.id,workspace.id,'Reply with exactly: AIBO_CURSOR_DESKTOP_OK');
   if(completed.content!=='AIBO_CURSOR_DESKTOP_OK')throw Error(`Unexpected Cursor response: ${completed.content}`);
   await invoke('close_agent_session',{sessionId:session.id});
@@ -47,4 +56,5 @@ try {
   await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,pluginVersion:listed.version,sessionId:session.id,response:completed.content,resumed:!!resumed,eventCount:events.length,capabilities:session.capabilities})});
 } catch(error) {
   await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:false,error:String(error),stack:error?.stack})});
-}
+}}
+await run();

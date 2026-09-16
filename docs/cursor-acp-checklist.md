@@ -5,7 +5,7 @@
 ## P0 — 锁定合同与可行性
 
 - [x] 采用 ACP 主路径，排除 SDK/headless 自动降级。
-- [x] 核对本仓库插件文档及 Aibo `0d729ff` 的会话、事件、设置、交互参考实现。
+- [x] 核对本仓库插件文档及 Aibo `dd2a458` 的会话、事件、设置、交互、目标、子 Agent 与持久队列参考实现。
 - [x] 查阅 Cursor 官方 ACP 和 ACP 协议文档，标注协议能力与具体 CLI 支持的区别。
 - [x] 在临时工作区记录 Node、Cursor CLI 精确版本、宿主提交、OS/架构；确认真实 `agent acp`。
 - [x] 保存脱敏 initialize/new/load 响应：协议版本、authMethods、loadSession、模式和可选模型能力。
@@ -58,6 +58,9 @@
 - [x] additionalInstructions 校验 schema/version，每次调用读取快照且不改用户原消息。
 - [ ] 验证三层继承、空字符串覆盖、清空本层、运行中保存下一轮生效和 contribution 隔离。
 - [x] 不支持的附件、模型、推理强度明确拒绝；无未实现的 Fast/fork/goal 能力入口。
+- [x] 四个标准生命周期操作与共享合同逐字段一致，由宿主派生基础 `queue.manage`；provider 不伪造原生队列能力。
+- [x] 未实现可靠 ACP steering 时不声明 queue operation、`queue.manage` 或 `queue.steer`；运行中消息等待普通 FIFO 派发。
+- [x] 未实现 Aibo 原生目标与子 Agent 历史合同时不报告相关能力，不从 plan/task/tool 事件伪造共享事件。
 - [ ] 若扩展模型选择，增加目录、切换、恢复、迟到动作和真实执行模型验证后再报告 model.select。
 
 完成条件：重启恢复和调用间配置更新通过真实桌面流程；不支持能力不会显示成可用。
@@ -67,7 +70,7 @@
 - [x] 本仓库 `pnpm run verify` 通过，且已包含新增 Cursor 测试和构建检查。
 - [ ] 受影响宿主若有改动，执行其 `pnpm run verify`、相关 Rust/会话测试与原生探针。
 - [ ] 从 Applications 启动 Aibo，独立安装 Cursor 包；缺依赖、启用、禁用、卸载时轮盘入口正确变化。
-- [x] 隔离 `tauri dev` 实例安装、启用并发现 Cursor provider，创建会话且消息进入 Timeline；Cursor 服务连续返回 `resource_exhausted`，未据此冒充成功轮次或完整 UI 验收。
+- [x] 隔离 `tauri dev` 实例安装、启用并发现 Cursor provider；真实会话由宿主派生 `queue.manage` 且无 `queue.steer`，随后 close、disable、uninstall 成功。另一次消息探针进入 Timeline 后由 Cursor 服务返回 `resource_exhausted`，未据此冒充成功轮次或完整 UI 验收。
 - [ ] 验证固定绑定会话在插件不可用时明确报错，不切换其他 provider。
 - [ ] 双皮肤验证消息、工具、审批、提问、计划、取消和错误；现有 presentation 包默认继承正常。
 - [ ] 每个 manifest 宣告的平台均有真实安装、执行、恢复证据；删去未验证平台。
