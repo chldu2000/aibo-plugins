@@ -1,9 +1,13 @@
 # Aibo 插件开发文档
 
-最近核对：Aibo 提交 `0d729ff`（2026-09-16）。本次增量核对 `a3d9eac..0d729ff`，保留前次相关变化作为迁移参考。
+最近核对：2026-09-17，Aibo 提交 `dd2a458`（`feat: open durable queues to standard session plugins`）。已包含此前 `c867685`、`c817c9a`、`eaefa0c` 的目标、子 Agent 和持久队列改动，以及本次队列通用化。§3.9 / §4.4 的接入规则以 `dd2a458` 为准；本地提交尚未推送，不代表已发布版本。
 
 | 提交 | 变化 | 开发者需要注意 |
 | --- | --- | --- |
+| `dd2a458` | 持久队列开放给标准会话插件 | 宿主派生 queue.manage；queue.steer 单独协商，未知投递不自动重发 |
+| `eaefa0c` | 内置 Codex/Pi 持久消息队列 | 稳定消息 ID、revision、暂停恢复及 uncertain 不自动重发 |
+| `c817c9a` | 子 Agent 进度与持久历史 | 新增 subagent 事件、独立卡片和 openSubagent 动作 |
+| `c867685` | 目标控制与 Codex 暂停/恢复 | 恢复走宿主回合准入，区分目标状态和执行状态 |
 | `0d729ff` | 分作用域的 Agent 设置协议 | 声明 settings，在每次调用消费 context.settings；处理继承和版本隔离 |
 | `21e17bf` | 能力感知的 Fast 服务层级 | 按模型目录协商；ModelMatrix 动作新增 kind 区分 |
 | `29e63dc` | 修正上下文用量 | 区分当前上下文占用与会话累计用量 |
@@ -23,6 +27,7 @@ aibo-plugins/
 ├── docs/plugin-development.md
 ├── plugins/
 │   ├── capability/              # plugin.json、worker.ts、tsconfig.json
+│   ├── cursor/                  # Cursor ACP 会话提供者
 │   └── presentation/            # presentation.source.json、worker.js、style.css
 ├── scripts/build.mjs           # 本地 SDK 打包、编译与安装目录生成
 ├── test/presentation.test.mjs
@@ -57,7 +62,8 @@ AIBO_ROOT=/absolute/path/to/aibo pnpm run build
 
 输出位于每次新建的 `dist/build-*`：
 
-- `unpacked/`：能力安装目录，包含 `plugin.json`、`dist/worker.js` 和运行依赖。
+- `capability/`：能力示例安装目录，包含 `plugin.json`、`dist/worker.js` 和运行依赖。
+- `cursor/`：Cursor ACP 会话插件安装目录，包含 Worker 及运行依赖；实现范围和安装要求见 `plugins/cursor/README.md`、`docs/cursor-acp-spec.md`。
 - `presentation/`：呈现安装目录，包含 `presentation.json` 和清单声明的资源。
 - 其他目录及归档：SDK、构建副本和构建证据，供调试检查。
 
@@ -178,6 +184,68 @@ v1 不接受任意 HTML、脚本、CSS 或 JSON Schema 引用，也不提供密�
 宿主现在优先读取显式 `contextTokens` / `contextUsedTokens` / `usedContextTokens`，其次读取 `last.totalTokens`，最后回退到 input 用量并标记为估算。会话累计 total/input 与当前上下文占用不同；提供者应报告准确的当前上下文值及 `contextWindow` / `contextLimit` / `modelContextWindow`，呈现插件应保留宿主的估算语义，不自行把累计 token 数当作上下文大小。
 
 
+### 3.7 目标暂停、恢复与执行准入
+
+目标状态与回合执行状态独立：active 目标在空闲会话中表示“待继续”，不是正在执行工具。会话可继续只报告 `goal.manage`；暂停和恢复按钮分别依赖固定 release 报告的 `goal.pause`、`goal.resume`，旧会话不会因宿主更新自动获得能力。
+
+目标恢复是宿主执行意图，不应通过普通元数据操作绕开回合准入。实现恢复的 session provider 需按共享合同声明 Runtime 2.1 核心能力：
+
+- `aibo.session.goal.resume`：只读恢复。
+- `aibo.session.goal.resume.write`：可写恢复，使用与 `aibo.session.turn.write` 相同的会话作用域写入授权。
+
+两者输入均为 `{}`，输出与正常回合一致，包含 `status`（completed/interrupted/failed）和 recovery。操作 schema、effect、permissions 应与 `contracts/session-capabilities.v1.json` 及宿主校验一致。宿主分配 turn 并负责事件、审批、取消和工作区变更记录；恢复不消费 Composer 草稿或待发送附件。
+
+`goal.updated` 是新增会话事件，仅接受报告了 `goal.manage` 的提供者，payload 使用 `{ goal }`；它更新目标展示，不改变宿主执行状态。运行期间目标读取通过 live control 完成，不应等待长调用结束。
+
+内置 Codex 的实现示范：创建目标先保存为 paused，`/goal` 再请求宿主准入恢复；恢复激活原生目标，不另发一条继续提示。多个原生回合属于一个宿主逻辑执行，直到连续执行真正结束才发送终止事件。暂停先保存 paused，再中断原生回合，保留目标、预算和用量；中断失败仍报告错误，不能假装已停止。等待原生启动有 30 秒超时保护。这些是当前 Codex 的实现行为，不是所有第三方引擎自动具备的能力。
+
+目标状态新增 blocked、usageLimited、budgetLimited；原生 complete 归一化为 completed，并可报告 `timeUsedSeconds`。预算耗尽不能被普通恢复绕过。共享 session provider 的 additionalInstructions 仅添加到普通发送文本；goal resume 没有发送文本，不会追加这些指令。
+
+### 3.8 子 Agent 进度与持久化历史
+
+新增 `subagent.updated` 和 `subagent.message`，应遵守 `contracts/session-event.v1.schema.json`（兼容事件 schema 同步更新）。这不是把子 Agent 内容作为主助手消息重复输出：
+
+| 事件 | payload 必填字段 |
+| --- | --- |
+| subagent.updated | id、parentId、rootTurnId、name、task、status、activity |
+| subagent.message | agentId、rootTurnId、entry |
+
+两类事件的事件级 `turnId` 必须为 null；payload.rootTurnId 指向当前会话中实际存在的宿主父 turn，不能用原生 turn ID 替代。事件仍受调用生命周期、绑定和代际校验，不能绕过正常运行时发送事件。
+
+子 Agent status 为 pending/running/waiting/completed/failed/interrupted/closed/unavailable。entry 必须包含稳定 id、role（user/assistant/system/tool）、toolName（字符串或 null）、content 和 status（streaming/completed/failed/interrupted）；payload 不接受额外字段。
+
+`subagent.message` 传递同一 entry 的完整更新快照，历史按 entry.id 保留最新内容并保持首次出现顺序；不要把增量片段当作完整 content 覆盖。宿主将进度投影为 `toolName: 'subagent'` 的主时间线卡片，卡片 content 为序列化任务对象，详细过程保存在事件历史中。详情可在重启后读取，无需重新启动原生 Agent；父 turn 已中断或失败时，历史中尚在 streaming 的详情归一化为 interrupted。
+
+当前内置 Codex 跟踪原生子线程及嵌套关系，读取失败可显示 unavailable；未提供过程应明确降级。第三方需实现事件映射，不应以普通工具分组冒充完整子 Agent 过程。
+
+### 3.9 持久消息队列与原生 steering
+
+自 Aibo 提交 `dd2a458` 起，**宿主持久队列已按标准会话合同开放给外部 Agent 插件**，不再按 Codex/Pi provider ID 判断。要求已有有效 Runtime 2.1 会话绑定，且固定 release 的 session contribution 声明符合共享合同的 `aibo.session.open`、`aibo.session.turn`、`aibo.session.cancel`、`aibo.session.close`。宿主在公开 Session.capabilities 中补充 `queue.manage`，无需插件实现原生等待队列；未绑定或旧 Runtime 会话不获得该能力。
+
+运行中追加输入单独以宿主派生的 `queue.steer` 标记控制。当前兼容现有操作协议：提供者原始协商 capabilities 包含 `queue.manage`，且清单声明版本 1.0.0 的 `<pluginId>.queue.manage` 操作，`inputSchema.properties.action.enum` 明确包含 `steer`。宿主通过活动调用的 control 发送 `{ action: "steer", message: "…" }`，成功响应必须表示消息已被接收。只声明 queue.steer 字符串不能获得该能力；宿主派生标记不回写提供者原始协商数据。
+
+因此，仅具备标准生命周期的插件也可以持久排队、删除、清空、暂停恢复，并在回合结束后自动发送。无 steering 时隐藏运行中的立即发送，后端在入队/领取前拒绝显式 steer/sendNow；空闲时仍允许把队列项作为正常回合立即发送。第三方须正确报告 turn.started 和终止事件，缺失确认仍按 uncertain 处理。当前 Cursor 骨架具备标准生命周期，可使用基础队列，无需伪造原生 queue.manage 能力。
+
+符合上述合同的会话运行中发送会加入宿主等待队列。成功回合完全结束后按入队顺序经正常执行准入派发下一条。通过宿主的 queue.manage 入口提供：
+
+| action | 附加输入 | 行为 |
+| --- | --- | --- |
+| get | 无 | 读持久快照，不启动原生运行时 |
+| followUp | message | 保存等待消息及其引用附件 |
+| steer | message | 先保存，再尝试立即投递 |
+| remove | id | 删除一条未被领取的消息 |
+| sendNow | id | 立即投递现有消息 |
+| clear | 无 | 清空未被领取的消息 |
+| resume | 无 | 恢复暂停队列的有序派发 |
+
+sendNow 不等于中断：存在活动回合且支持 queue.steer 时使用原生 steering，否则仅在空闲时发起正常回合。Codex 使用带预期原生 turn ID 的 turn/steer，Pi 使用 AgentSession.steer；Pi 原生 follow-up 缓冲不作为宿主等待队列来源，任何提供者的 queue.updated 都不能覆盖已由宿主管理的队列快照。
+
+快照和宿主 queue.updated 包含 sessionId、revision、paused、items、updatedAt；item 为 `{ id, text, status, error, createdAt }`，status 为 pending/sending/failed/uncertain。相同文本是不同消息，按稳定 id 操作，按 sessionId/revision 防止迟到读取覆盖新状态。旧 steering/followUp 字符串数组仍供兼容读取，不具备单条身份。
+
+派发在事务中领取消息；正常新回合收到原生启动确认后才移除队列项，steering 收到接受确认后移除并写入已有宿主 turn。明确拒绝保留消息；确认丢失产生不确定结果时不可自动重发。steering 提供者只有确定消息未被接收时才能返回 `no_active_turn` / `no_active_turn:` 或 `steer_rejected` / `steer_rejected:` 错误消息；前者允许等待原回合结束后转普通发送，后者保留失败项。超时或仅在诊断文本中提及 expectedTurnId 不构成安全重试依据。uncertain 项须与历史核对并移除，之后才能恢复队列。
+
+停止、回合失败、应用重启暂停自动消费而不清空消息，重启将未完成发送标为 uncertain。切换会话或呈现不改变队列。每会话最多 100 条等待消息。附件在入队时从 Composer 分离并归属队列项，投递前重新校验；文件变化/缺失保留错误项。删除未发送项只清理其未发送附件，不影响后续草稿或已绑定历史附件。
+
 ## 4. 开发呈现插件
 
 `plugins/presentation/presentation.source.json` 是源清单，构建生成正式 `presentation.json`。不要手写摘要。
@@ -235,9 +303,20 @@ const iconNode = {
 
 AgentSettingsForm 是宿主 UiKitAdapter 的可信控件，当前没有加入外部 `PresentationControlData` 目录。外部呈现包不能声明同名 control 来接管设置表单，也不能直接调用设置 IPC；声明式 settings 由宿主管理和绘制。
 
+### 4.4 目标、子 Agent 与队列的工作台适配
+
+以下变化影响自行实现 workbench 的包。当前骨架仅提供状态控件，其余继承宿主，无需添加这些界面。
+
+- **目标**：消费 `data.conversation.goal` 和可选 `goalBusy`，支持新增状态及可选 timeUsedSeconds。绑定 conversationActions 中的 clearGoal/pauseGoal/resumeGoal；不能只根据 active 判断正在执行，也不能绕过宿主动作目录自行恢复 budgetLimited 目标。paused 但 running 时应说明当前回合尚未结束。
+- **子 Agent**：识别 timeline 中 `toolName === 'subagent'`，解析并校验 content 后展示名称、任务、状态和活动摘要，作为独立卡片而不是普通工具组。解析失败保留可读降级。绑定 `openSubagent` 和对应 child.id 的宿主 token，详情由宿主持有；插件不直接调用历史 IPC。
+- **队列**：优先读取 queue.items，按稳定 id 展示文本、状态和错误。items/paused/revision 在呈现类型中为可选字段，旧快照可降级显示 steering/followUp，但不要为没有稳定 ID 的文本合成删除动作。
+- **队列动作**：新增 removeQueuedMessage/sendQueuedMessage/resumeQueue，继续支持 queueSteer/queueFollowUp/clearQueue。单条动作 args 绑定 item.id；sending 项不提供单条操作，uncertain 不提供立即发送且阻止恢复。运行中的 queueSteer/sendQueuedMessage 还要求 queue.steer；仅有 queue.manage 时只提供等待队列操作。所有可执行按钮只使用当前宿主目录中的 token，不从显示状态自行推导权限。
+
+GoalBar、SubagentCard、SubagentDialog 是宿主 UiKitAdapter 控件，本次未将它们加入外部 controls 目录；外部 workbench 通过视觉树和上述语义动作提供相应展示，不能声明同名 controls 获得宿主接口。队列状态、详情历史、草稿和附件归属仍由宿主维护，切换呈现不能清空或重新派发。
+
 ## 5. 安装与验收
 
-1. 执行 `pnpm run verify`，记录输出的两个绝对路径。
+1. 执行 `pnpm run verify`，记录输出的 capability、cursor、presentation 三个绝对路径。
 2. 在 Aibo 能力插件管理入口安装 `capability` 指向的目录并启用，从命令入口打开 **Aibo starter greeting**，确认出现“你好，Aibo！”且刷新可用。
 3. 在呈现包管理入口安装 `presentation` 指向的目录并选择该呈现，检查主题、Agent 状态标签和默认模型控件。
 4. 检查停用、重新启用、重启与升级。能力 release 和会话绑定不可静默迁移；呈现包故障应恢复宿主呈现。
@@ -260,7 +339,17 @@ Fast 和设置协议的扩展实现还需验证：
 
 相关宿主检查：`node --test test/agent-settings.test.mjs test/model-configuration.test.mjs test/composer-fast-tier.test.mjs test/presentation-controls.test.mjs test/presentation-conversation.test.mjs test/session-usage.test.mjs`。设置数据库与完整链路测试、双皮肤浏览器探针见 `docs/agent-plugin-settings.md`。本项目的 verify 不覆盖这些扩展行为。
 
-本项目 verify 检查呈现控件输出/默认继承、TypeScript 编译、能力归档完整性以及呈现清单和资源校验。不启动桌面应用，也不证明协议握手、实际安装或完整交互通过。直接启动能力 worker 会等待 stdin 握手，不能当作冒烟测试。
+目标、子 Agent 与持久队列还需验证：
+
+- 旧 release 不出现未支持的目标按钮；恢复读/写授权、暂停失败、原生连续回合及预算耗尽；恢复不消费草稿或附件。
+- 子 Agent 事件字段、null turnId 与有效 rootTurnId；同 entry.id 更新不重复，嵌套任务、读取失败降级、父任务中断及重启后历史。
+- 外部提供者无原生队列也可 FIFO 发送；缺失标准生命周期或绑定时不启用。只有清单和原始协商同时支持 steer 才显示运行中立即发送，后端拒绝不能新增/领取队列项。
+- 相同文本的两条队列项按 ID 独立删除，FIFO、立即 steering、结束时竞争、revision 排序、停止/重启暂停及 uncertain 禁止重发。
+- 队列附件与下一条草稿隔离，文件变化报错，切换呈现不重置队列；旧队列快照降级及动作 token 的会话/条目作用域。
+
+宿主新增相关用例在 `test/session-goal.test.mjs`、`test/subagent-workflow.test.mjs`、`test/message-queue.test.mjs`、`test/presentation-timeline.test.mjs` 和 `test/presentation-conversation.test.mjs`。原生链路运行 `cargo test --manifest-path src-tauri/Cargo.toml --lib`；子 Agent 双皮肤探针为 `node probes/subagent-browser.mjs`。本项目构建不替代这些验证。
+
+本项目 verify 执行现有测试、呈现控件输出/默认继承检查、TypeScript 编译、能力归档完整性以及呈现清单和资源校验；构建还使用模拟 Cursor 引擎对打包后的 Cursor 插件进行协议冒烟检查。不启动桌面应用，也不证明协议握手、实际安装或完整交互通过。直接启动能力 worker 会等待 stdin 握手，不能当作冒烟测试。
 
 修改宿主时还需在 Aibo 仓库执行 `pnpm run verify`；涉及原生能力或会话时，根据宿主文档运行对应 Rust 测试与原生探针。
 
@@ -268,6 +357,10 @@ Fast 和设置协议的扩展实现还需验证：
 
 以下路径均相对于相邻的 `../aibo` 仓库；自定义 AIBO_ROOT 时在相应仓库查阅：
 
+- `docs/goal-lifecycle.md` / `docs/message-queue.md`：目标准入和持久队列边界。
+- `contracts/session-event.v1.schema.json` / `contracts/agent-event.v2.schema.json`：目标与子 Agent 事件字段。
+- `src-tauri/src/session_queue.rs` / `src-tauri/src/session_history.rs` / `src-tauri/src/session_projection.rs`：队列适用范围、历史持久化与事件投影。
+- `src/lib/presentation-runtime/conversation.ts` / `packages/presentation-workbench/timeline.js`：工作台动作门禁及子 Agent 卡片参考。
 - `docs/plugin-development_zh.md`：官方插件开发指南。
 - `docs/agent-plugin-settings.md` / `contracts/agent-settings.v1.schema.json` / `packages/plugin-protocol/src/settings.ts`：设置声明、继承、快照和验证。
 - `src-tauri/capability-plugins/codex/engine.mjs` / `plugin.json`（同目录）：当前服务层级能力及实际执行参考。
