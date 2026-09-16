@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
-  "platforms": ["darwin-arm64", "darwin-x64"],
+  "platforms": ["darwin-arm64"],
   "protocols": { "runtime": { "min": "2.1", "max": "2.1" } },
   "entrypoint": { "executable": "worker.mjs" },
   "executableDependencies": [
@@ -75,7 +75,7 @@
           },
           "effect": "read",
           "permissions": ["workspace.read"],
-          "timeoutMs": 30000,
+          "timeoutMs": 120000,
           "idempotent": false
         },
         {

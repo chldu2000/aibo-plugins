@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const packagePath = process.argv[2];
@@ -21,7 +22,8 @@ createInterface({input:child.stdout,crlfDelay:Infinity}).on('line',line=>{
   const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);
   message.error?waiter.reject(new Error(message.error.message)):waiter.resolve(message.result);
 });
-const identity={protocol:'2.1',instanceId:'smoke-instance',generationId:'smoke-generation',installationId:'smoke-installation',pluginId:'dev.aibo.cursor',pluginVersion:'0.1.0',contributionId:'dev.aibo.cursor.agent',privateData:{path:packagePath,formatVersion:1}};
+const manifest=JSON.parse(await readFile(path.join(packagePath,'plugin.json'),'utf8'));
+const identity={protocol:'2.1',instanceId:'smoke-instance',generationId:'smoke-generation',installationId:'smoke-installation',pluginId:manifest.pluginId,pluginVersion:manifest.version,contributionId:'dev.aibo.cursor.agent',privateData:{path:packagePath,formatVersion:1}};
 const initialized=await send('capability.initialize',identity);
 if(initialized.protocol!=='2.1')throw new Error('Cursor package did not negotiate Runtime 2.1');
 const context={turnId:null,workspaceId:'smoke-workspace',workspacePath:packagePath,originalCaller:{kind:'window',id:'smoke-window'},permissions:['workspace.read'],callChain:[]};

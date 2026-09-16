@@ -3,7 +3,7 @@
 Aibo 独立插件开发项目，包含 Cursor Agent、一个能力示例和一个呈现示例。
 
 - [插件开发文档](docs/plugin-development.md)
-- [Cursor ACP 实现规格](docs/cursor-acp-spec.md) · [开发与验收 checklist](docs/cursor-acp-checklist.md)
+- [Cursor ACP 实现规格](docs/cursor-acp-spec.md) · [开发与验收 checklist](docs/cursor-acp-checklist.md) · [验证记录](docs/cursor-acp-validation.md)
 - [Cursor Agent 插件](plugins/cursor/)：通过官方 `agent acp` 接入本地 Cursor 会话。
 - [能力插件](plugins/capability/)：读取能力、详情语义视图和刷新动作。
 - [呈现插件](plugins/presentation/)：Ocean 主题和 AgentStatusMark Worker 控件，其他控件继承宿主。

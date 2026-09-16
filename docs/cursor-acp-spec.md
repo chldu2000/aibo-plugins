@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-状态：实现前规格；尚未实现或完成真机验证。决策日期：2026-09-16。
+状态：`0.1.1` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证，Aibo 桌面安装验收待完成。决策日期：2026-09-16。
 
 本项目采用 **Cursor CLI ACP** 作为本地 Cursor 会话的唯一首版后端：Aibo → Runtime 2.1 能力 Worker → `agent acp`。此前[能力调查](cursor-integration-research.md)用于背景比较；其中 SDK 优先级建议不再代表本项目选型。执行任务见[实现与验收 checklist](cursor-acp-checklist.md)。
 
@@ -10,26 +10,21 @@
 
 目标：安装独立能力插件后，新建会话轮盘出现 Cursor；用户能在工作区持续对话、查看流式输出和工具活动、回答问题、审批操作、取消执行，并在 Aibo 重启后恢复同一 Cursor 会话。
 
-首版包含：文本、多轮、创建/恢复/关闭、ask/plan/edit 映射、工具事件、审批与提问、附加指令、错误诊断。发布平台先限定经过验证的 macOS arm64/x64；未测架构不填入 manifest。先使用 CLI 当前默认模型；模型目录/切换只有协商和完整宿主路由验证后才启用。
+首版包含：文本、多轮、创建/恢复/关闭、ask/plan/edit 映射、工具事件、审批与提问、附加指令、错误诊断。发布平台限定已验证的 macOS arm64；未测架构不填入 manifest。先使用 CLI 当前默认模型；模型目录/切换只有协商和完整宿主路由验证后才启用。
 
 不包含：SDK Bridge、headless 降级、Cloud API、桌面 Cursor UI 控制、历史会话导入、fork、目标管理、推理强度、Fast、Aibo 工具到 MCP 的自动桥接。附件首版明确拒绝非空输入，不静默丢弃；后续按 ACP 实际协商能力扩展。
 
 ## 2. 包结构与职责
 
-建议新增以下文件；这是实现目录约定，不表示这些文件已经存在：
+当前实现文件：
 
 ```text
 plugins/cursor/
   plugin.json
   package.json
-  tsconfig.json
-  worker.ts              # SDK 入口、invoke/control、调用身份检查
-  acp-transport.ts        # 子进程、NDJSON、双向 RPC、资源释放
-  cursor-session.ts      # 握手、认证、会话状态机、能力协商
-  event-mapper.ts         # ACP → Aibo 事件及回放隔离
-  interaction-router.ts  # 权限/问题/计划响应和 pending 表
-  execution-policy.ts    # executionProfile 支持矩阵及验证
-  recovery.ts            # 版本化恢复状态
+  worker.mjs             # Runtime 入口、invoke/control、调用身份检查
+  acp-transport.mjs      # 子进程、NDJSON、双向 RPC、资源释放
+  cursor-session.mjs     # 握手、会话状态机、策略、事件、交互与恢复
 ```
 
 测试放在仓库根目录的 `test/cursor-*.test.mjs`。

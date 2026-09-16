@@ -7,8 +7,8 @@
 - [x] 采用 ACP 主路径，排除 SDK/headless 自动降级。
 - [x] 核对本仓库插件文档及 Aibo `0d729ff` 的会话、事件、设置、交互参考实现。
 - [x] 查阅 Cursor 官方 ACP 和 ACP 协议文档，标注协议能力与具体 CLI 支持的区别。
-- [ ] 在临时工作区记录 Node、Cursor CLI 精确版本、宿主提交、OS/架构；确认真实 `agent acp`。
-- [ ] 保存脱敏 initialize/new/load 响应：协议版本、authMethods、loadSession、模式和可选模型能力。
+- [x] 在临时工作区记录 Node、Cursor CLI 精确版本、宿主提交、OS/架构；确认真实 `agent acp`。
+- [x] 保存脱敏 initialize/new/load 响应：协议版本、authMethods、loadSession、模式和可选模型能力。
 - [ ] 验证 `agent login` 后从 Applications 启动 Aibo 可使用登录态和 PATH；未登录时可诊断、不挂起。
 - [ ] 建立 executionProfile 支持矩阵并执行文件写入、目录越界、命令、网络和 MCP 探针；不支持组合在 open 拒绝。
 - [ ] 证明 user 审核路由可用；auto-review/none 未实现时明确拒绝，不自动改语义。
@@ -18,13 +18,13 @@
 
 ## P1 — 独立插件及双向传输
 
-- [ ] 新建 `plugins/cursor/`，使用公开 SDK 和 Runtime 2.1；无宿主私有路径 import。
-- [ ] Manifest 声明 session provider、标准 open/turn/write/cancel/close 与插件交互操作；ID、版本、schema、effect、权限一致。
+- [x] 新建 `plugins/cursor/`，使用公开 SDK 和 Runtime 2.1；无宿主私有路径 import。
+- [x] Manifest 声明 session provider、标准 open/turn/write/cancel/close 与插件交互操作；ID、版本、schema、effect、权限一致。
 - [ ] Node/agent 依赖检查、GUI 路径发现、同名非 Cursor 命令错误可诊断。
-- [ ] 增加 Cursor 独立构建输出，SDK 离线安装及产物依赖完整，现有两个示例包继续构建。
+- [x] 增加 Cursor 独立构建输出，SDK 离线安装及产物依赖完整，现有两个示例包继续构建。
 - [ ] transport 测试覆盖拆分 UTF-8、半行、多行、CRLF、ID 0、字符串/数字 ID、双向请求和背压。
 - [ ] 覆盖畸形 JSON、未知 request/notification、超大帧、stderr 洪流、EOF、stdin error、退出和 deadline；所有 pending 都结束。
-- [ ] Worker stdout 无日志、无透传的原始 ACP 消息；日志和产物无凭据。
+- [x] Worker stdout 无日志、无透传的原始 ACP 消息；日志和产物无凭据。
 
 完成条件：假 ACP 子进程可驱动真实 Worker 的握手、流式事件和执行中 control；构建产物脱离源码目录可启动宿主握手。
 
@@ -47,31 +47,31 @@
 
 ## P3 — 恢复、设置和兼容
 
-- [ ] recovery 校验版本、sessionId 和工作区绑定，不包含凭据、pending 或伪造 offset。
+- [x] recovery 校验版本、sessionId 和工作区绑定，不包含凭据、pending 或伪造 offset。
 - [ ] open/轮次结束后 recovery 确实由宿主持久化；不是只测进程内 snapshot。
 - [ ] 同绑定存活运行时被复用，元数据读取不重复 new/load。
 - [ ] 空闲回收、关闭后重开、Aibo 重启均 load 同一 nativeSessionId，下一轮保留原上下文。
-- [ ] load 回放不重复追加 Aibo 消息，不重发历史审批和工具动作。
+- [x] load 回放不重复追加 Aibo 消息，不重发历史审批和工具动作。
 - [ ] prompt 发出后崩溃、结果返回前断连：不自动重试，提示结果可能未知；不承诺补齐丢失尾部。
 - [ ] 原生会话缺失、账号变化、不支持 load、未知 recovery 版本明确失败，不悄悄 new。
 - [ ] 插件升级后已有会话保留 release/contribution 绑定；新建会话使用新版本。
-- [ ] additionalInstructions 校验 schema/version，每次调用读取快照且不改用户原消息。
+- [x] additionalInstructions 校验 schema/version，每次调用读取快照且不改用户原消息。
 - [ ] 验证三层继承、空字符串覆盖、清空本层、运行中保存下一轮生效和 contribution 隔离。
-- [ ] 不支持的附件、模型、推理强度明确拒绝；无未实现的 Fast/fork/goal 能力入口。
+- [x] 不支持的附件、模型、推理强度明确拒绝；无未实现的 Fast/fork/goal 能力入口。
 - [ ] 若扩展模型选择，增加目录、切换、恢复、迟到动作和真实执行模型验证后再报告 model.select。
 
 完成条件：重启恢复和调用间配置更新通过真实桌面流程；不支持能力不会显示成可用。
 
 ## P4 — 发布验收与证据
 
-- [ ] 本仓库 `pnpm run verify` 通过，且已包含新增 Cursor 测试和构建检查。
+- [x] 本仓库 `pnpm run verify` 通过，且已包含新增 Cursor 测试和构建检查。
 - [ ] 受影响宿主若有改动，执行其 `pnpm run verify`、相关 Rust/会话测试与原生探针。
 - [ ] 从 Applications 启动 Aibo，独立安装 Cursor 包；缺依赖、启用、禁用、卸载时轮盘入口正确变化。
 - [ ] 验证固定绑定会话在插件不可用时明确报错，不切换其他 provider。
 - [ ] 双皮肤验证消息、工具、审批、提问、计划、取消和错误；现有 presentation 包默认继承正常。
 - [ ] 每个 manifest 宣告的平台均有真实安装、执行、恢复证据；删去未验证平台。
-- [ ] 在发布证据中记录精确 CLI/Node 版本、宿主提交、OS/架构、profile 支持矩阵、测试命令和结果。
+- [x] 在发布证据中记录精确 CLI/Node 版本、宿主提交、OS/架构、profile 支持矩阵、测试命令和结果。
 - [ ] 产物移至独立目录检查无开发机路径、相邻宿主依赖、凭据或未脱敏日志；版本字段一致。
-- [ ] 发布说明列明需预先安装/登录 Cursor、已验证版本、配置限制、恢复边界和已知问题。
+- [x] 发布说明列明需预先安装/登录 Cursor、已验证版本、配置限制、恢复边界和已知问题。
 
 发布完成条件：P0–P4 的首版必需项全部通过；可选模型项未做则保持禁用。现有 verify 仅检查本仓库原骨架，不单独证明 Cursor 协议、安装或真实交互可用。

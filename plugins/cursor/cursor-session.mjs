@@ -90,15 +90,16 @@ export class CursorSession {
       let result;
       if (restored) {
         if (this.agentCapabilities.loadSession !== true) throw pluginError('unsupported', 'This Cursor CLI cannot restore ACP sessions');
-        result = await transport.request('session/load', { sessionId: restored.nativeSessionId, cwd: workspacePath, mcpServers: [] });
+        result = await transport.request('session/load', { sessionId: restored.nativeSessionId, cwd: workspacePath, mcpServers: [] }, 90_000);
         this.sessionId = restored.nativeSessionId;
       } else {
-        result = await transport.request('session/new', { cwd: workspacePath, mcpServers: [] });
+        result = await transport.request('session/new', { cwd: workspacePath, mcpServers: [] }, 90_000);
         if (typeof result?.sessionId !== 'string' || !result.sessionId) throw pluginError('invalid_output', 'Cursor did not return a session ID');
         this.sessionId = result.sessionId;
       }
       await this.#selectMode(result, policy.mode);
       this.phase = 'ready';
+      this.#event('session.started', { mode: this.modeId });
       return this.snapshot();
     } catch (error) {
       await this.close();
@@ -241,17 +242,29 @@ export class CursorSession {
         this.transport.respond(message.id, rejected ? { outcome: { outcome: 'selected', optionId: rejected.optionId } } : { outcome: { outcome: 'cancelled' } });
         return true;
       }
+      if (this.pendingInteractions.size >= 32) {
+        this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
+        return true;
+      }
       this.pendingInteractions.set(requestId, { kind: 'permission', rpcId: message.id, options });
       this.#event('approval.requested', { requestId, kind: params.toolCall?.kind ?? 'tool', command: params.toolCall?.title ?? null, availableDecisions: ['accept', 'cancel'] }, { requestId, toolCallId: params.toolCall?.toolCallId ?? null, approvalId: message.id });
       return true;
     }
     if (message.method === 'cursor/ask_question') {
       const questions = Array.isArray(params.questions) ? params.questions : [];
+      if (this.pendingInteractions.size >= 32) {
+        this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
+        return true;
+      }
       this.pendingInteractions.set(requestId, { kind: 'question', rpcId: message.id, questions });
       this.#event('user_input.requested', { requestId, title: params.title ?? null, questions }, { requestId, toolCallId: params.toolCallId ?? null });
       return true;
     }
     if (message.method === 'cursor/create_plan') {
+      if (this.pendingInteractions.size >= 32) {
+        this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
+        return true;
+      }
       this.pendingInteractions.set(requestId, { kind: 'plan', rpcId: message.id });
       this.#event('extension.updated', { namespace: 'dev.aibo.cursor', kind: 'plan', requestId, plan: params.plan ?? '', todos: params.todos ?? [] }, { requestId, toolCallId: params.toolCallId ?? null });
       this.#event('approval.requested', { requestId, kind: 'plan', command: params.name ?? 'Cursor plan', description: params.plan ?? '', availableDecisions: ['accept', 'cancel'] }, { requestId, toolCallId: params.toolCallId ?? null, approvalId: message.id });
