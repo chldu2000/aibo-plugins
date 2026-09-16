@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-状态：`0.1.6` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证；已对齐 Aibo `dd2a458` 的宿主持久队列合同。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-17。
+状态：`0.1.7` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证；已对齐 Aibo `dd2a458` 的宿主持久队列和子 Agent 事件合同。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-17。
 
 本项目采用 **Cursor CLI ACP** 作为本地 Cursor 会话的唯一首版后端：Aibo → Runtime 2.1 能力 Worker → `agent acp`。此前[能力调查](cursor-integration-research.md)用于背景比较；其中 SDK 优先级建议不再代表本项目选型。执行任务见[实现与验收 checklist](cursor-acp-checklist.md)。
 
@@ -10,7 +10,7 @@
 
 目标：安装独立能力插件后，新建会话轮盘出现 Cursor；用户能在工作区持续对话、查看流式输出和工具活动、回答问题、审批操作、取消执行，并在 Aibo 重启后恢复同一 Cursor 会话。
 
-首版包含：文本、多轮、创建/恢复/关闭、ask/plan/edit 映射、工具事件、审批与提问、附加指令、错误诊断。发布平台限定已验证的 macOS arm64；未测架构不填入 manifest。先使用 CLI 当前默认模型；模型目录/切换只有协商和完整宿主路由验证后才启用。
+首版包含：文本、多轮、创建/恢复/关闭、ask/plan/edit 映射、工具事件、完成级 Cursor 子 Agent 任务卡、审批与提问、附加指令、错误诊断。发布平台限定已验证的 macOS arm64；未测架构不填入 manifest。先使用 CLI 当前默认模型；模型目录/切换只有协商和完整宿主路由验证后才启用。
 
 不包含：SDK Bridge、headless 降级、Cloud API、桌面 Cursor UI 控制、历史会话导入、fork、目标管理、推理强度、Fast、Aibo 工具到 MCP 的自动桥接。附件首版明确拒绝非空输入，不静默丢弃；后续按 ACP 实际协商能力扩展。
 
@@ -61,7 +61,7 @@ Aibo `dd2a458` 起依据固定 release 的标准合同派生 `queue.manage`。�
 
 本版本不支持运行中原生 steering。`CAPABILITIES` 不包含 `queue.manage` 或 `queue.steer`，manifest 也不声明 `dev.aibo.cursor.queue.manage` 操作。运行中的 follow-up 等当前回合完全结算后再发送；空闲 send-now 仍由宿主发起普通 turn。不得仅添加能力字符串或空操作来开启 `queue.steer`，因为 ACP 尚无已验证的“已接收/明确未接收”确认语义。
 
-目标恢复和子 Agent 历史同样保持未宣告：Cursor ACP 当前事件不满足 Aibo goal/subagent 的共享合同，不把普通计划、task 或 tool 事件伪装为 `goal.updated`、`subagent.updated` 或 `subagent.message`。
+目标能力保持未宣告：Cursor ACP 没有满足 Aibo goal get/set/pause/resume 的原生状态机，不把普通 plan/todo 伪装为 `goal.updated`。Cursor CLI 的结构化 task tool 则映射为 `subagent.updated`：以 toolCallId 作为稳定任务 ID，native session 作为直接父级，宿主 turnId 作为 rootTurnId，并按 running/waiting/completed/failed/interrupted/unavailable 收敛。ACP 只在 task 完成后提供摘要、agentId 和耗时，不提供过程 entry 或可重读子线程历史，因此不发送 `subagent.message`；宿主详情明确显示无过程记录。
 
 会话身份取自 invocation.scope；工作区 ID、绝对路径、权限、turnId、settings 取自可信 context。拒绝 input 伪造身份、跨会话操作和已有绑定的工作区替换。写轮次需独立验证 `workspace.write`，不能仅凭 Cursor mode 判断已获授权。
 
@@ -115,10 +115,11 @@ ACP 的 load 能力必须协商；加载期间会回放历史，响应 load 后�
 | 开始发送 prompt | `turn.started`，当前轮次只发一次 |
 | agent_message_chunk | `message.delta`；聚合后在结束时 `message.completed` |
 | agent_thought_chunk（如返回） | `reasoning.updated` / `reasoning.completed`；无数据不伪造 |
-| tool_call / tool_call_update | 以 toolCallId 合并 `tool.started`、`tool.updated`、`tool.completed`；更新未包含字段保留旧值 |
+| 普通 tool_call / tool_call_update | 以 toolCallId 合并 `tool.started`、`tool.updated`、`tool.completed`；更新未包含字段保留旧值 |
+| `_toolName: task` 与 `cursor/task` | 以 toolCallId 合并 `subagent.updated`，事件 turnId 为 null、rootTurnId 为当前宿主 turn；不再重复普通工具卡 |
 | permission request | `approval.requested`；匹配 control 后 `approval.resolved` |
 | Cursor 问题 / 计划请求 | 分别进入 user_input / approval 交互；不能仅渲染文本 |
-| plan、todos、任务/图片通知 | `extension.updated`，使用插件命名空间；展示降级不能卡住轮次 |
+| plan、todos、图片通知 | `extension.updated`，使用插件命名空间；展示降级不能卡住轮次 |
 | 模式/元信息变化 | `session.info_changed`，重新校验执行边界 |
 | usage（仅实际返回时） | `usage.updated`，映射当前上下文和累计用量到不同字段 |
 | prompt 最终 response | 完成消息聚合并发唯一轮次终态，返回 SessionTurnOutput |
@@ -140,7 +141,8 @@ Cursor 文档定义 ask_question、create_plan 为阻塞请求，update_todos、
 
 - ask_question：转换为 `user_input.requested`；建立 question ID、option ID 与宿主字段的可逆映射。校验选择属于该问题、单选/多选约束；回传 answered/answers。宿主不能表达的自由文本不得冒充 option ID；不支持的交互明确 skipped 或取消并说明。
 - create_plan：完整计划作为可阅读内容先呈现，再发带同一请求关联的审批；accept/cancel 转为 accepted/rejected，轮次取消转 cancelled。不虚构 planUri 或写入计划文件。
-- 三类通知只更新展示；任务通知不代表让 Aibo 再启动子代理，图片通知不自动读取任意本地路径。
+- update_todos 和 generate_image 只更新扩展展示，图片通知不自动读取任意本地路径。task 是 Cursor 已执行的原生子 Agent 摘要，映射为 Aibo `subagent.updated`，不代表让 Aibo 再启动任务；缺失完成通知时按父回合结果收敛为 unavailable/interrupted/failed。
+- Cursor ACP 未暴露子 Agent 消息流或历史读取，因此不得合成 `subagent.message`。未来只有获得稳定 entry ID、完整快照和重启读取路径后才能增加过程历史。
 - 通过宿主双皮肤验收确认多选和完整计划展示；若缺少必要字段/动作，列出最小宿主合同变更后才能宣告完整支持。
 
 ## 7. 取消、恢复与持久化

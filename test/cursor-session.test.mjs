@@ -186,3 +186,44 @@ test('计划和多选问题按带类型请求 ID 独立闭环', async () => {
   transport.finishPrompt({stopReason:'end_turn'});
   assert.equal((await turn).status,'completed');
 });
+
+test('Cursor task 映射为无重复工具卡的子 Agent 生命周期', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const turn=session.prompt({text:'delegate',turnId:'turn-subagent'});await Promise.resolve();
+  const notify=(method,params)=>transport.emitNotification({jsonrpc:'2.0',method,params});
+  notify('session/update',{sessionId:'cursor-session-1',update:{sessionUpdate:'tool_call',toolCallId:'task-1',title:'Task: inspect tests',kind:'other',status:'pending',rawInput:{_toolName:'task',prompt:'Inspect tests',description:'Repository explorer',subagentType:'explore'}}});
+  notify('session/update',{sessionId:'cursor-session-1',update:{sessionUpdate:'tool_call_update',toolCallId:'task-1',status:'completed'}});
+  notify('cursor/task',{toolCallId:'task-1',description:'Repository explorer',prompt:'Inspect tests',subagentType:'explore',agentId:'native-child',durationMs:42});
+  transport.finishPrompt({stopReason:'end_turn'});
+  assert.equal((await turn).status,'completed');
+  const updates=events.filter(event=>event.type==='subagent.updated');
+  assert.deepEqual(updates.map(event=>event.payload.status),['running','waiting','completed']);
+  assert.ok(updates.every(event=>event.turnId===null&&event.payload.rootTurnId==='turn-subagent'));
+  assert.deepEqual(updates.at(-1).payload,{id:'task-1',parentId:'cursor-session-1',rootTurnId:'turn-subagent',name:'explore',task:'Inspect tests',status:'completed',activity:'Completed in 42 ms.'});
+  assert.equal(events.some(event=>event.type.startsWith('tool.')&&event.correlation?.toolCallId==='task-1'),false);
+  assert.equal(events.some(event=>event.type==='subagent.message'),false);
+});
+
+test('缺少 Cursor task 尾部通知时子 Agent 明确降级为 unavailable', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const turn=session.prompt({text:'delegate',turnId:'turn-missing-task'});await Promise.resolve();
+  transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:{sessionUpdate:'tool_call',toolCallId:'task-missing',title:'Task',kind:'other',status:'pending',rawInput:{_toolName:'task',prompt:'Inspect'}}}});
+  transport.finishPrompt({stopReason:'end_turn'});
+  await turn;
+  assert.equal(events.filter(event=>event.type==='subagent.updated').at(-1).payload.status,'unavailable');
+});
+
+test('取消父回合时未完成的 Cursor 子 Agent 收敛为 interrupted', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const turn=session.prompt({text:'delegate',turnId:'turn-cancel-task'});await Promise.resolve();
+  transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:{sessionUpdate:'tool_call',toolCallId:'task-cancel',title:'Task',kind:'other',status:'pending',rawInput:{_toolName:'task',prompt:'Inspect'}}}});
+  await session.cancel();transport.finishPrompt({stopReason:'cancelled'});
+  assert.equal((await turn).status,'interrupted');
+  assert.equal(events.filter(event=>event.type==='subagent.updated').at(-1).payload.status,'interrupted');
+});

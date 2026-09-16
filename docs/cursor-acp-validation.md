@@ -1,6 +1,6 @@
 # Cursor ACP 验证记录
 
-验证日期：2026-09-17。仓库宿主基线：Aibo `dd2a458`。插件版本：`0.1.6`。
+验证日期：2026-09-17。仓库宿主基线：Aibo `dd2a458`。插件版本：`0.1.7`。
 
 环境：macOS 27.0 arm64、Node.js `v24.18.0`、Cursor CLI `2026.09.10-fd3934a`。验证工作区是 `/private/tmp` 下新建的空目录，不包含本仓库文件。
 
@@ -15,13 +15,15 @@
 
 本地自动验证：
 
-- `pnpm run verify`：21 项测试通过（含新增 manifest/队列合同回归测试）；三个安装目录构建成功。
+- `pnpm run verify`：24 项测试通过（含 manifest/队列合同与 Cursor 子 Agent 生命周期回归测试）；三个安装目录构建成功。
 - ACP 传输测试覆盖分割 UTF-8、半行、多行、CRLF、字符串/数字 ID、ID 0、双向请求、写入背压、超限无换行帧、畸形 JSON、stdout EOF、stdin 错误和 deadline；异常时所有 pending request 均结束。
 - 会话测试覆盖多消息分段、即时完成工具和重复终态去重、未知 stop reason、prompt 传输失败及宿主执行中关闭后的状态收敛。
 - Worker/会话边界要求 edit 模式只能接受宿主写授权轮次、ask/plan 只能接受只读轮次；设置 schema/version/长度错误会明确失败。交互请求按 JSON-RPC ID 类型、当前 turn 和 native session 绑定，禁用网络时 URL/curl/wget 类请求直接拒绝。
 - 强制取消会响应并结算所有待处理交互，发送 `session/cancel`，宽限期后关闭 ACP，并以唯一 interrupted 终态结束。计划接受与多选问题可同时存在，数字和字符串 JSON-RPC ID 不冲突。
-- Cursor manifest 的 open/turn/cancel/close 已与 `dd2a458` 的共享会话合同逐字段对照；满足宿主派生基础 `queue.manage` 的条件。provider raw capabilities 和 operations 均不声明原生 steering，因此宿主不会派生 `queue.steer`。目标与子 Agent 能力同样保持未声明。
+- Cursor manifest 的 open/turn/cancel/close 已与 `dd2a458` 的共享会话合同逐字段对照；满足宿主派生基础 `queue.manage` 的条件。provider raw capabilities 和 operations 均不声明原生 steering，因此宿主不会派生 `queue.steer`。目标能力保持未声明。
+- 本机 Cursor CLI `2026.09.10-fd3934a` 的 ACP 实现确认 task tool 提供 toolCallId、prompt、description、subagentType，完成通知另带可选 agentId/model/durationMs。插件将其映射为 schema 合规的 `subagent.updated`，抑制重复普通工具卡；完成通知缺失、父回合取消或失败均有明确终态。CLI 未提供过程 entry/历史读取，因此不发送 `subagent.message`。
 - 宿主 `node --test test/message-queue.test.mjs test/presentation-conversation.test.mjs`：12 项通过，覆盖 waiting-only provider 入队但不能运行中 steer，以及相应呈现动作门禁。
+- 宿主 `node --test test/subagent-workflow.test.mjs test/presentation-timeline.test.mjs test/presentation-conversation.test.mjs`：19 项通过，覆盖子 Agent 卡片原位更新、与普通工具分组隔离、过程历史不可用时的明确呈现，以及 goal 控件的 capability 门禁。
 - 打包后的 Cursor Worker 使用独立假 ACP 可执行文件完成 Runtime 2.1 initialize、session open、流式文本和 turn completion。
 - `plugin.json` 通过 Aibo Manifest v2 schema 校验。
 

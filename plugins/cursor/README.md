@@ -19,6 +19,6 @@ This release intentionally rejects full-access, automatic review, model selectio
 
 With Aibo `dd2a458` or newer, the host derives `queue.manage` from this plugin's standard Runtime 2.1 open/turn/cancel/close contracts. Waiting messages, stable IDs, FIFO delivery, pause/resume and uncertain-delivery handling remain host-owned. This release does not advertise native `queue.steer`: messages submitted during a running Cursor turn wait for that turn to settle, while send-now remains available when the session is idle.
 
-Cursor ACP does not currently provide the native goal or subagent history contracts required by Aibo, so this release does not report goal or subagent capabilities and does not synthesize their events from ordinary tools.
+Cursor task tool calls are projected as Aibo subagent task cards with stable IDs and explicit terminal states. Cursor ACP currently exposes only completion-level task metadata, so this release does not invent `subagent.message` history. It also does not report goal capabilities because ACP has no matching goal lifecycle.
 
 Build from the repository root with `pnpm run verify`, then install the emitted `cursor` directory from Aibo's capability plugin manager.

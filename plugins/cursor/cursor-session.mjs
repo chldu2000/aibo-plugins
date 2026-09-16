@@ -28,6 +28,11 @@ function toolPayload(tool, update = {}) {
     status: update.status ?? tool.status ?? 'pending',
   };
 }
+function subagentName(value) {
+  if (typeof value === 'string' && value && value !== 'unspecified') return value.replaceAll('_', ' ');
+  if (typeof value?.custom === 'string' && value.custom) return value.custom;
+  return 'Cursor subagent';
+}
 
 export function validateExecutionProfile(profile, permissions) {
   const p = object(profile);
@@ -66,6 +71,7 @@ export class CursorSession {
     this.pendingInteractions = new Map();
     this.tools = new Map();
     this.completedTools = new Set();
+    this.subagents = new Map();
     this.phase = 'stopped';
   }
 
@@ -130,6 +136,7 @@ export class CursorSession {
     this.reasoningItemId = null;
     this.tools.clear();
     this.completedTools.clear();
+    this.subagents.clear();
     this.#event('turn.started', {});
     const promptText = additionalInstructions.trim() ? `${additionalInstructions.trim()}\n\n${text}` : text;
     try {
@@ -142,13 +149,19 @@ export class CursorSession {
       const stopReason = result?.stopReason;
       const status = stopReason === 'end_turn' || stopReason === 'refusal' ? 'completed'
         : ['cancelled', 'max_tokens', 'max_turn_requests'].includes(stopReason) ? 'interrupted' : 'failed';
+      this.#finishSubagents(
+        status === 'interrupted' ? 'interrupted' : status === 'failed' ? 'failed' : 'unavailable',
+        status === 'interrupted' ? 'Parent turn was interrupted.' : status === 'failed' ? 'Parent turn failed.' : 'Cursor did not provide a final task notification.',
+      );
       this.#event(status === 'failed' ? 'turn.failed' : 'turn.completed', { status, stopReason: stopReason ?? null });
       return { status, recovery: this.recovery() };
     } catch (error) {
       if (this.phase === 'cancelling') {
+        this.#finishSubagents('interrupted', 'Parent turn was cancelled.');
         this.#event('turn.completed', { status: 'interrupted', stopReason: 'cancelled', forced: true });
         return { status: 'interrupted', recovery: this.recovery() };
       }
+      this.#finishSubagents('failed', 'Cursor task status became unavailable after a transport failure.');
       this.#event('turn.failed', { status: 'failed', message: String(error?.message ?? error).slice(0, 2_000) });
       if (this.transport && !this.transport.closed) await this.transport.close();
       throw error;
@@ -311,7 +324,21 @@ export class CursorSession {
       if (this.turnId) this.#event('adapter.crashed', { message: message.params?.message ?? 'Cursor ACP exited' });
       return;
     }
-    if (['cursor/update_todos', 'cursor/task', 'cursor/generate_image'].includes(message.method)) {
+    if (message.method === 'cursor/task') {
+      if (!this.turnId) return;
+      const params = object(message.params);
+      const subagent = this.subagents.get(params.toolCallId);
+      if (!subagent) return;
+      const completed = Number.isFinite(params.durationMs);
+      this.#updateSubagent(subagent, {
+        name: subagentName(params.subagentType ?? subagent.subagentType),
+        task: params.prompt || subagent.task,
+        status: completed ? 'completed' : 'unavailable',
+        activity: completed ? `Completed${params.durationMs > 0 ? ` in ${params.durationMs} ms` : ''}.` : 'Cursor did not expose a successful task result.',
+      });
+      return;
+    }
+    if (['cursor/update_todos', 'cursor/generate_image'].includes(message.method)) {
       if (this.turnId) this.#event('extension.updated', { namespace: 'dev.aibo.cursor', kind: message.method.slice('cursor/'.length), ...object(message.params) });
       return;
     }
@@ -341,6 +368,21 @@ export class CursorSession {
     }
     if (update.sessionUpdate === 'tool_call') {
       this.tools.set(update.toolCallId, { ...update });
+      if (update.rawInput?._toolName === 'task') {
+        const subagent = {
+          id: update.toolCallId,
+          parentId: this.sessionId,
+          rootTurnId: this.turnId,
+          name: subagentName(update.rawInput.subagentType),
+          task: update.rawInput.prompt || update.rawInput.description || update.title || 'Cursor task',
+          status: 'running',
+          activity: update.rawInput.description || 'Running Cursor subagent task.',
+          subagentType: update.rawInput.subagentType,
+        };
+        this.subagents.set(update.toolCallId, subagent);
+        this.#updateSubagent(subagent);
+        return;
+      }
       this.#event('tool.started', toolPayload(update, { status: 'pending' }), { itemId: update.toolCallId, toolCallId: update.toolCallId });
       if (['completed', 'failed'].includes(update.status)) {
         this.completedTools.add(update.toolCallId);
@@ -349,6 +391,12 @@ export class CursorSession {
       return;
     }
     if (update.sessionUpdate === 'tool_call_update') {
+      const subagent = this.subagents.get(update.toolCallId);
+      if (subagent) {
+        if (update.status === 'failed') this.#updateSubagent(subagent, { status: 'failed', activity: bounded(update.rawOutput ?? update.content) || 'Cursor subagent task failed.' });
+        else if (update.status === 'completed') this.#updateSubagent(subagent, { status: 'waiting', activity: 'Waiting for Cursor task details.' });
+        return;
+      }
       if (this.completedTools.has(update.toolCallId)) return;
       const merged = { ...this.tools.get(update.toolCallId), ...update };
       this.tools.set(update.toolCallId, merged);
@@ -367,5 +415,17 @@ export class CursorSession {
 
   #event(type, payload, correlation = null) {
     this.emit({ nativeSessionId: this.sessionId, turnId: this.turnId ?? null, type, correlation, payload });
+  }
+
+  #updateSubagent(subagent, changes = {}) {
+    Object.assign(subagent, changes);
+    const { id, parentId, rootTurnId, name, task, status, activity } = subagent;
+    this.emit({ nativeSessionId: this.sessionId, turnId: null, type: 'subagent.updated', correlation: { itemId: id, toolCallId: id }, payload: { id, parentId, rootTurnId, name, task, status, activity } });
+  }
+
+  #finishSubagents(status, activity) {
+    for (const subagent of this.subagents.values()) {
+      if (!['completed', 'failed', 'interrupted', 'unavailable'].includes(subagent.status)) this.#updateSubagent(subagent, { status, activity });
+    }
   }
 }

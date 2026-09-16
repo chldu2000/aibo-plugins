@@ -39,7 +39,7 @@
 - [ ] pending 绑定会话/代际/invocation/类型；跨会话、重复、伪造和迟到 control 被拒绝。
 - [ ] ask_question 单选/多选映射、非法选项、无法表达的自由文本、skipped/cancelled 处理完整。
 - [ ] create_plan 显示完整计划并有接受/拒绝/取消；接受计划不提升执行权限。
-- [ ] todos/task/image 通知不等待响应、不触发宿主额外执行，未知扩展有界降级。
+- [x] todos/image 通知不等待响应、不触发宿主额外执行；task 映射专用子 Agent 卡且不重复普通工具卡，未知/缺尾通知有界降级。
 - [ ] 在文本生成、工具执行、权限等待、问题等待和计划等待时取消；有界杀进程且无悬挂交互。
 - [ ] 宿主 abort、Worker stdin EOF、窗口退出均释放子进程；验证无遗留进程及监听器泄漏。
 
@@ -60,7 +60,7 @@
 - [x] 不支持的附件、模型、推理强度明确拒绝；无未实现的 Fast/fork/goal 能力入口。
 - [x] 四个标准生命周期操作与共享合同逐字段一致，由宿主派生基础 `queue.manage`；provider 不伪造原生队列能力。
 - [x] 未实现可靠 ACP steering 时不声明 queue operation、`queue.manage` 或 `queue.steer`；运行中消息等待普通 FIFO 派发。
-- [x] 未实现 Aibo 原生目标与子 Agent 历史合同时不报告相关能力，不从 plan/task/tool 事件伪造共享事件。
+- [x] 不报告未实现的 Aibo goal 能力；Cursor 结构化 task 只映射字段充分的 `subagent.updated`，不伪造缺失的 `subagent.message` 过程历史。
 - [ ] 若扩展模型选择，增加目录、切换、恢复、迟到动作和真实执行模型验证后再报告 model.select。
 
 完成条件：重启恢复和调用间配置更新通过真实桌面流程；不支持能力不会显示成可用。
