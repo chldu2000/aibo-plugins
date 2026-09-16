@@ -54,6 +54,7 @@ export class CursorSession {
     this.pluginVersion = pluginVersion;
     this.pendingInteractions = new Map();
     this.tools = new Map();
+    this.completedTools = new Set();
     this.phase = 'stopped';
   }
 
@@ -116,6 +117,7 @@ export class CursorSession {
     this.messageItemId = null;
     this.reasoningItemId = null;
     this.tools.clear();
+    this.completedTools.clear();
     this.#event('turn.started', {});
     const promptText = additionalInstructions.trim() ? `${additionalInstructions.trim()}\n\n${text}` : text;
     try {
@@ -132,10 +134,11 @@ export class CursorSession {
       return { status, recovery: this.recovery() };
     } catch (error) {
       this.#event('turn.failed', { status: 'failed', message: String(error?.message ?? error).slice(0, 2_000) });
+      if (this.transport && !this.transport.closed) await this.transport.close();
       throw error;
     } finally {
       clearTimeout(this.cancelTimer);
-      this.phase = this.transport?.closed ? 'failed' : 'ready';
+      if (this.phase !== 'stopped') this.phase = this.transport?.closed ? 'failed' : 'ready';
       this.turnId = null;
       this.pendingInteractions.clear();
     }
@@ -193,9 +196,14 @@ export class CursorSession {
   }
 
   async close() {
-    this.removeRequest?.(); this.removeNotification?.();
     clearTimeout(this.cancelTimer);
     const transport = this.transport;
+    if (transport && !transport.closed) {
+      for (const pending of this.pendingInteractions.values()) {
+        try { transport.respond(pending.rpcId, { outcome: { outcome: 'cancelled' } }); } catch { /* process is already unavailable */ }
+      }
+    }
+    this.removeRequest?.(); this.removeNotification?.();
     this.transport = null;
     this.pendingInteractions.clear();
     this.phase = 'stopped';
@@ -221,7 +229,7 @@ export class CursorSession {
   #validateRecovery(value, workspaceId, workspacePath) {
     const recovery = object(value);
     const data = object(recovery.data);
-    if (recovery.schema !== RECOVERY_SCHEMA || recovery.version !== 1 || typeof data.nativeSessionId !== 'string') throw pluginError('invalid_input', 'Invalid Cursor recovery data');
+    if (recovery.schema !== RECOVERY_SCHEMA || recovery.version !== 1 || typeof data.nativeSessionId !== 'string' || !data.nativeSessionId) throw pluginError('invalid_input', 'Invalid Cursor recovery data');
     if (data.workspaceId !== workspaceId || data.workspacePath !== workspacePath) throw pluginError('permission_denied', 'Cursor recovery belongs to another workspace');
     return data;
   }
@@ -287,26 +295,42 @@ export class CursorSession {
     if (message.method !== 'session/update' || this.phase === 'loading' || message.params?.sessionId !== this.sessionId || !this.turnId) return;
     const update = object(message.params.update);
     if (update.sessionUpdate === 'agent_message_chunk' && update.content?.type === 'text') {
-      this.messageItemId = update.messageId ?? this.messageItemId ?? `assistant-${this.turnId}`;
+      const nextItemId = update.messageId ?? this.messageItemId ?? `assistant-${this.turnId}`;
+      if (this.messageItemId && nextItemId !== this.messageItemId && this.messageText) {
+        this.#event('message.completed', { itemId: this.messageItemId, text: this.messageText }, { itemId: this.messageItemId });
+        this.messageText = '';
+      }
+      this.messageItemId = nextItemId;
       this.messageText += update.content.text;
       this.#event('message.delta', { itemId: this.messageItemId, delta: update.content.text }, { itemId: this.messageItemId });
       return;
     }
     if (update.sessionUpdate === 'agent_thought_chunk' && update.content?.type === 'text') {
-      this.reasoningItemId = update.messageId ?? this.reasoningItemId ?? `reasoning-${this.turnId}`;
+      const nextItemId = update.messageId ?? this.reasoningItemId ?? `reasoning-${this.turnId}`;
+      if (this.reasoningItemId && nextItemId !== this.reasoningItemId && this.reasoningText) {
+        this.#event('reasoning.completed', { itemId: this.reasoningItemId, summary: this.reasoningText }, { itemId: this.reasoningItemId });
+        this.reasoningText = '';
+      }
+      this.reasoningItemId = nextItemId;
       this.reasoningText += update.content.text;
       this.#event('reasoning.updated', { itemId: this.reasoningItemId, delta: update.content.text }, { itemId: this.reasoningItemId });
       return;
     }
     if (update.sessionUpdate === 'tool_call') {
       this.tools.set(update.toolCallId, { ...update });
-      this.#event('tool.started', toolPayload(update), { itemId: update.toolCallId, toolCallId: update.toolCallId });
+      this.#event('tool.started', toolPayload(update, { status: 'pending' }), { itemId: update.toolCallId, toolCallId: update.toolCallId });
+      if (['completed', 'failed'].includes(update.status)) {
+        this.completedTools.add(update.toolCallId);
+        this.#event('tool.completed', toolPayload(update), { itemId: update.toolCallId, toolCallId: update.toolCallId });
+      }
       return;
     }
     if (update.sessionUpdate === 'tool_call_update') {
+      if (this.completedTools.has(update.toolCallId)) return;
       const merged = { ...this.tools.get(update.toolCallId), ...update };
       this.tools.set(update.toolCallId, merged);
       const terminal = ['completed', 'failed'].includes(merged.status);
+      if (terminal) this.completedTools.add(update.toolCallId);
       this.#event(terminal ? 'tool.completed' : 'tool.updated', toolPayload(merged, update), { itemId: update.toolCallId, toolCallId: update.toolCallId });
       return;
     }

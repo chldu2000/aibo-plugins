@@ -1,7 +1,7 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },

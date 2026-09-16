@@ -22,8 +22,8 @@
 - [x] Manifest 声明 session provider、标准 open/turn/write/cancel/close 与插件交互操作；ID、版本、schema、effect、权限一致。
 - [ ] Node/agent 依赖检查、GUI 路径发现、同名非 Cursor 命令错误可诊断。
 - [x] 增加 Cursor 独立构建输出，SDK 离线安装及产物依赖完整，现有两个示例包继续构建。
-- [ ] transport 测试覆盖拆分 UTF-8、半行、多行、CRLF、ID 0、字符串/数字 ID、双向请求和背压。
-- [ ] 覆盖畸形 JSON、未知 request/notification、超大帧、stderr 洪流、EOF、stdin error、退出和 deadline；所有 pending 都结束。
+- [x] transport 测试覆盖拆分 UTF-8、半行、多行、CRLF、ID 0、字符串/数字 ID、双向请求和背压。
+- [x] 覆盖畸形 JSON、未知 request/notification、超大帧、stderr 有界保留、EOF、stdin error、退出和 deadline；所有 pending 都结束。
 - [x] Worker stdout 无日志、无透传的原始 ACP 消息；日志和产物无凭据。
 
 完成条件：假 ACP 子进程可驱动真实 Worker 的握手、流式事件和执行中 control；构建产物脱离源码目录可启动宿主握手。

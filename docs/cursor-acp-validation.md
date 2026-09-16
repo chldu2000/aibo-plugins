@@ -1,6 +1,6 @@
 # Cursor ACP 验证记录
 
-验证日期：2026-09-16。仓库宿主基线：Aibo `0d729ff`。插件版本：`0.1.2`。
+验证日期：2026-09-16。仓库宿主基线：Aibo `0d729ff`。插件版本：`0.1.3`。
 
 环境：macOS 27.0 arm64、Node.js `v24.18.0`、Cursor CLI `2026.09.10-fd3934a`。验证工作区是 `/private/tmp` 下新建的空目录，不包含本仓库文件。
 
@@ -15,7 +15,9 @@
 
 本地自动验证：
 
-- `pnpm run verify`：7 项测试通过；三个安装目录构建成功。
+- `pnpm run verify`：17 项测试通过；三个安装目录构建成功。
+- ACP 传输测试覆盖分割 UTF-8、半行、多行、CRLF、字符串/数字 ID、ID 0、双向请求、写入背压、超限无换行帧、畸形 JSON、stdout EOF、stdin 错误和 deadline；异常时所有 pending request 均结束。
+- 会话测试覆盖多消息分段、即时完成工具和重复终态去重、未知 stop reason、prompt 传输失败及宿主执行中关闭后的状态收敛。
 - 打包后的 Cursor Worker 使用独立假 ACP 可执行文件完成 Runtime 2.1 initialize、session open、流式文本和 turn completion。
 - `plugin.json` 通过 Aibo Manifest v2 schema 校验。
 

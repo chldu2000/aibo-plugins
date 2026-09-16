@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { StringDecoder } from 'node:string_decoder';
 
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
@@ -17,6 +17,11 @@ export class AcpTransport {
     this.notificationHandlers = new Set();
     this.stderr = '';
     this.closed = false;
+    this.decoder = new StringDecoder('utf8');
+    this.readBuffer = '';
+    this.writeQueue = [];
+    this.queuedWriteBytes = 0;
+    this.writePaused = false;
   }
 
   start() {
@@ -28,9 +33,17 @@ export class AcpTransport {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     this.child = child;
-    const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
-    this.lines = lines;
-    lines.on('line', line => this.#receiveLine(line));
+    child.stdout.on('data', chunk => this.#receiveData(chunk));
+    child.stdout.once('end', () => {
+      const tail = this.decoder.end();
+      if (tail) this.#receiveData(tail);
+      if (!this.closed && this.readBuffer.length) this.#receiveLine(this.readBuffer.replace(/\r$/, ''));
+      this.readBuffer = '';
+      if (!this.closed) this.#finish(new Error('Cursor ACP stdout closed'));
+    });
+    child.stdout.once('error', error => this.#finish(error));
+    child.stdin.once('error', error => this.#finish(error));
+    child.stdin.on('drain', () => this.#flushWrites());
     child.stderr.on('data', chunk => {
       this.stderr = `${this.stderr}${String(chunk)}`.slice(-MAX_STDERR_BYTES);
     });
@@ -65,7 +78,9 @@ export class AcpTransport {
   async close({ forceAfterMs = 2_000 } = {}) {
     if (!this.child || this.closed) return;
     this.closed = true;
-    this.lines?.close();
+    this.readBuffer = '';
+    this.writeQueue.length = 0;
+    this.queuedWriteBytes = 0;
     this.child.stdin.end();
     if (this.child.exitCode !== null || this.child.signalCode !== null) return;
     this.child.kill('SIGTERM');
@@ -79,8 +94,41 @@ export class AcpTransport {
   #write(message) {
     if (!this.child || this.closed || !this.child.stdin.writable) throw new Error('Cursor ACP transport is not writable');
     const frame = `${JSON.stringify(message)}\n`;
-    if (Buffer.byteLength(frame) > MAX_FRAME_BYTES) throw new Error('Cursor ACP frame exceeds 8 MiB');
-    this.child.stdin.write(frame);
+    const bytes = Buffer.byteLength(frame);
+    if (bytes > MAX_FRAME_BYTES) throw new Error('Cursor ACP frame exceeds 8 MiB');
+    if (this.writePaused) {
+      if (this.queuedWriteBytes + bytes > MAX_FRAME_BYTES) throw new Error('Cursor ACP write queue exceeds 8 MiB');
+      this.writeQueue.push(frame);
+      this.queuedWriteBytes += bytes;
+      return;
+    }
+    this.writePaused = !this.child.stdin.write(frame);
+  }
+
+  #flushWrites() {
+    if (this.closed || !this.child?.stdin.writable) return;
+    this.writePaused = false;
+    while (!this.writePaused && this.writeQueue.length) {
+      const frame = this.writeQueue.shift();
+      this.queuedWriteBytes -= Buffer.byteLength(frame);
+      this.writePaused = !this.child.stdin.write(frame);
+    }
+  }
+
+  #receiveData(chunk) {
+    if (this.closed) return;
+    this.readBuffer += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
+    if (Buffer.byteLength(this.readBuffer) > MAX_FRAME_BYTES && !this.readBuffer.includes('\n')) {
+      this.#finish(new Error('Cursor ACP frame exceeds 8 MiB'));
+      return;
+    }
+    let newline;
+    while (!this.closed && (newline = this.readBuffer.indexOf('\n')) >= 0) {
+      const line = this.readBuffer.slice(0, newline).replace(/\r$/, '');
+      this.readBuffer = this.readBuffer.slice(newline + 1);
+      this.#receiveLine(line);
+    }
+    if (!this.closed && Buffer.byteLength(this.readBuffer) > MAX_FRAME_BYTES) this.#finish(new Error('Cursor ACP frame exceeds 8 MiB'));
   }
 
   #receiveLine(line) {
@@ -116,7 +164,9 @@ export class AcpTransport {
   #finish(error, terminate = true) {
     if (this.closed && !this.pending.size) return;
     this.closed = true;
-    this.lines?.close();
+    this.readBuffer = '';
+    this.writeQueue.length = 0;
+    this.queuedWriteBytes = 0;
     if (terminate && this.child && this.child.exitCode === null && this.child.signalCode === null) this.child.kill('SIGTERM');
     this.#rejectPending(error);
     for (const handler of this.notificationHandlers) {

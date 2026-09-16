@@ -14,7 +14,7 @@ class FakeTransport {
     if (method === 'session/new') return {sessionId:'cursor-session-1',configOptions:[{id:'mode',currentValue:'ask',options:[{value:'agent'},{value:'plan'},{value:'ask'}]}]};
     if (method === 'session/load') return {configOptions:[{id:'mode',currentValue:'ask',options:[{value:'agent'},{value:'plan'},{value:'ask'}]}]};
     if (method === 'session/set_config_option') return {configOptions:[{id:'mode',currentValue:params.value}]};
-    if (method === 'session/prompt') return new Promise(resolve => { this.finishPrompt=resolve; });
+    if (method === 'session/prompt') return new Promise((resolve,reject) => { this.finishPrompt=resolve;this.rejectPrompt=reject; });
     throw new Error(`Unexpected request: ${method}`);
   }
   notify(method,params) { this.notifications.push({method,params}); }
@@ -23,6 +23,7 @@ class FakeTransport {
   emitRequest(message) { for (const handler of this.requestHandlers) handler(message); }
   emitNotification(message) { for (const handler of this.notificationHandlers) handler(message); }
   async close() { this.closed=true; }
+  failPrompt(error=new Error('ACP failed')) { this.rejectPrompt?.(error); }
 }
 
 const askProfile = {
@@ -95,4 +96,43 @@ test('问题响应校验选项，恢复绑定工作区并隔离历史回放', as
   assert.deepEqual(transport.notifications.at(-1),{method:'session/cancel',params:{sessionId:'old-session'}});
   transport.finishPrompt({stopReason:'cancelled'});
   assert.equal((await turn).status,'interrupted');
+});
+
+test('多段消息和工具只生成各自唯一终态，未知停止原因失败', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const turn=session.prompt({text:'hello',turnId:'turn-segments'});await Promise.resolve();
+  const update=value=>transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:value}});
+  update({sessionUpdate:'agent_message_chunk',messageId:'m1',content:{type:'text',text:'first'}});
+  update({sessionUpdate:'agent_message_chunk',messageId:'m2',content:{type:'text',text:'second'}});
+  update({sessionUpdate:'tool_call',toolCallId:'done',title:'Done immediately',kind:'read',status:'completed'});
+  update({sessionUpdate:'tool_call_update',toolCallId:'done',status:'completed'});
+  transport.finishPrompt({stopReason:'future_reason'});
+  assert.equal((await turn).status,'failed');
+  assert.deepEqual(events.filter(event=>event.type==='message.completed').map(event=>event.payload.text),['first','second']);
+  assert.equal(events.filter(event=>event.type==='tool.completed').length,1);
+  assert.equal(events.filter(event=>event.type==='turn.failed').length,1);
+  assert.equal(events.filter(event=>event.type==='turn.completed').length,0);
+});
+
+test('prompt transport failure closes the generation and host close stays stopped', async () => {
+  const transport=new FakeTransport();const events=[];
+  const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
+  await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const failed=session.prompt({text:'fail',turnId:'turn-fail'});await Promise.resolve();
+  transport.failPrompt(new Error('connection lost'));
+  await assert.rejects(failed,/connection lost/);
+  assert.equal(transport.closed,true);
+  assert.equal(session.phase,'failed');
+  assert.equal(events.filter(event=>event.type==='turn.failed').length,1);
+
+  const secondTransport=new FakeTransport();
+  const second=new CursorSession({transportFactory:()=>secondTransport});
+  await second.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  const pending=second.prompt({text:'close',turnId:'turn-close'});await Promise.resolve();
+  await second.close();
+  secondTransport.failPrompt(new Error('closed by host'));
+  await assert.rejects(pending,/closed by host/);
+  assert.equal(second.phase,'stopped');
 });
