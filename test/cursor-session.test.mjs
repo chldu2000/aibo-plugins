@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CursorSession, validateExecutionProfile } from '../plugins/cursor/cursor-session.mjs';
+import { CursorSession, additionalInstructionsFromSettings, validateExecutionProfile } from '../plugins/cursor/cursor-session.mjs';
 
 class FakeTransport {
   constructor() { this.requests=[];this.responses=[];this.notifications=[];this.requestHandlers=[];this.notificationHandlers=[];this.closed=false; }
@@ -44,6 +44,13 @@ test('执行配置只开放已实现的安全组合', () => {
   assert.throws(() => validateExecutionProfile({...askProfile,approvalPolicy:'on-request'},['workspace.read']), /no approvals/);
 });
 
+test('设置快照必须符合版本与长度约束', () => {
+  assert.equal(additionalInstructionsFromSettings(null),'');
+  assert.equal(additionalInstructionsFromSettings({schema:'aibo.agent-settings/v1',version:1,values:{additionalInstructions:'Be terse'}}),'Be terse');
+  assert.throws(()=>additionalInstructionsFromSettings({schema:'wrong',version:1,values:{additionalInstructions:''}}),/invalid agent settings/);
+  assert.throws(()=>additionalInstructionsFromSettings({schema:'aibo.agent-settings/v1',version:1,values:{additionalInstructions:'x'.repeat(8001)}}),/invalid agent settings/);
+});
+
 test('创建会话、切换模式、流式输出和权限响应形成闭环', async () => {
   const transport = new FakeTransport();
   const events=[];
@@ -52,7 +59,8 @@ test('创建会话、切换模式、流式输出和权限响应形成闭环', as
   assert.equal(opened.nativeSessionId,'cursor-session-1');
   assert.deepEqual(transport.requests.map(request=>request.method),['initialize','authenticate','session/new','session/set_config_option']);
 
-  const turn = session.prompt({text:'hello',turnId:'turn-1',additionalInstructions:'Be terse'});
+  await assert.rejects(()=>session.prompt({text:'read through edit mode',turnId:'blocked'}),/write-authorized turn/);
+  const turn = session.prompt({text:'hello',turnId:'turn-1',additionalInstructions:'Be terse',writable:true});
   await Promise.resolve();
   transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:{sessionUpdate:'agent_message_chunk',messageId:'m1',content:{type:'text',text:'Hi'}}}});
   transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:{sessionUpdate:'tool_call',toolCallId:'t1',title:'Read',kind:'read',status:'pending'}}});
@@ -61,6 +69,10 @@ test('创建会话、切换模式、流式输出和权限响应形成闭环', as
   const approval = events.find(event=>event.type==='approval.requested');
   session.respondApproval(approval.payload.requestId,'accept');
   assert.deepEqual(transport.responses.at(-1),{id:7,result:{outcome:{outcome:'selected',optionId:'yes-once'}}});
+  transport.emitRequest({jsonrpc:'2.0',id:'network',method:'session/request_permission',params:{sessionId:'cursor-session-1',toolCall:{toolCallId:'t3',title:'Shell',kind:'execute',rawInput:{command:'curl https://example.com'}},options:[{optionId:'yes',kind:'allow_once'},{optionId:'no',kind:'reject_once'}]}});
+  assert.deepEqual(transport.responses.at(-1),{id:'network',result:{outcome:{outcome:'selected',optionId:'no'}}});
+  transport.emitRequest({jsonrpc:'2.0',id:'foreign',method:'session/request_permission',params:{sessionId:'another-session',options:[]}});
+  assert.deepEqual(transport.responses.at(-1),{id:'foreign',result:{outcome:{outcome:'cancelled'}}});
   transport.finishPrompt({stopReason:'end_turn'});
   const result = await turn;
   assert.equal(result.status,'completed');
@@ -102,6 +114,7 @@ test('多段消息和工具只生成各自唯一终态，未知停止原因失�
   const transport=new FakeTransport();const events=[];
   const session=new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
   await session.open({mode:'create',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery:null,permissions:['workspace.read']});
+  await assert.rejects(()=>session.prompt({text:'write through ask mode',turnId:'blocked',writable:true}),/requires edit mode/);
   const turn=session.prompt({text:'hello',turnId:'turn-segments'});await Promise.resolve();
   const update=value=>transport.emitNotification({jsonrpc:'2.0',method:'session/update',params:{sessionId:'cursor-session-1',update:value}});
   update({sessionUpdate:'agent_message_chunk',messageId:'m1',content:{type:'text',text:'first'}});

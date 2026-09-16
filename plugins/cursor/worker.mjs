@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { serveCapability } from '@aibo/capability-runtime/stdio';
-import { CursorSession, CAPABILITIES } from './cursor-session.mjs';
+import { CursorSession, CAPABILITIES, additionalInstructionsFromSettings } from './cursor-session.mjs';
 
 const manifest = JSON.parse(readFileSync(new URL('./plugin.json', import.meta.url), 'utf8'));
 const contribution = manifest.contributions[0];
@@ -14,7 +14,7 @@ function inputOf(request) {
 
 function contextOf(request) {
   const context = request.context;
-  if (request.scope.kind !== 'session' || !request.scope.id || !context.workspaceId || !context.workspacePath || !context.permissions.includes('workspace.read')) {
+  if (request.scope?.kind !== 'session' || typeof request.scope.id !== 'string' || !request.scope.id || typeof context?.workspaceId !== 'string' || !context.workspaceId || typeof context.workspacePath !== 'string' || !context.workspacePath || !Array.isArray(context.permissions) || !context.permissions.includes('workspace.read')) {
     throw Object.assign(new Error('Cursor requires a trusted session workspace'), { kind: 'permission_denied' });
   }
   return context;
@@ -36,9 +36,9 @@ async function invoke(request, tools) {
       if (!context.turnId || typeof input.text !== 'string' || !input.text.trim()) throw Object.assign(new Error('Cursor turn requires text and turn identity'), { kind: 'invalid_input' });
       if (Array.isArray(input.attachments) && input.attachments.length) throw Object.assign(new Error('Cursor attachments are not enabled in this release'), { kind: 'unsupported' });
       if (request.capability.endsWith('.write') && !context.permissions.includes('workspace.write')) throw Object.assign(new Error('Cursor write turn requires workspace.write'), { kind: 'permission_denied' });
-      const settings = context.settings;
-      const instructions = settings?.schema === 'aibo.agent-settings/v1' && settings.version === 1 && typeof settings.values?.additionalInstructions === 'string' ? settings.values.additionalInstructions : '';
-      return await session.prompt({ text: input.text, turnId: context.turnId, additionalInstructions: instructions });
+      const writable = request.capability.endsWith('.write');
+      const instructions = additionalInstructionsFromSettings(context.settings);
+      return await session.prompt({ text: input.text, turnId: context.turnId, additionalInstructions: instructions, writable });
     }
     throw Object.assign(new Error('Unsupported Cursor capability'), { kind: 'unsupported' });
   } finally {

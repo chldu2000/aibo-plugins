@@ -47,6 +47,16 @@ export function validateExecutionProfile(profile, permissions) {
   return { mode, profile: p };
 }
 
+export function additionalInstructionsFromSettings(settings) {
+  if (settings == null) return '';
+  const value = object(settings);
+  const values = object(value.values);
+  if (value.schema !== 'aibo.agent-settings/v1' || value.version !== 1 || typeof values.additionalInstructions !== 'string' || values.additionalInstructions.length > 8_000) {
+    throw pluginError('invalid_input', 'Cursor received invalid agent settings');
+  }
+  return values.additionalInstructions;
+}
+
 export class CursorSession {
   constructor({ transportFactory = options => new AcpTransport(options), emit = () => {}, pluginVersion = '0.1.0' } = {}) {
     this.transportFactory = transportFactory;
@@ -108,8 +118,9 @@ export class CursorSession {
     }
   }
 
-  async prompt({ text, turnId, additionalInstructions = '' }) {
+  async prompt({ text, turnId, additionalInstructions = '', writable = false }) {
     if (this.phase !== 'ready' || !this.sessionId) throw pluginError('busy', 'Cursor session is not ready');
+    if (writable !== (this.modeId === 'agent')) throw pluginError('permission_denied', writable ? 'Cursor write turn requires edit mode' : 'Cursor edit mode requires a write-authorized turn');
     this.phase = 'prompting';
     this.turnId = turnId;
     this.messageText = '';
@@ -160,7 +171,7 @@ export class CursorSession {
 
   respondApproval(requestId, decision) {
     const pending = this.pendingInteractions.get(requestId);
-    if (!pending || !['permission', 'plan'].includes(pending.kind)) throw pluginError('invalid_input', 'Cursor approval request is no longer pending');
+    if (!pending || pending.turnId !== this.turnId || !['permission', 'plan'].includes(pending.kind)) throw pluginError('invalid_input', 'Cursor approval request is no longer pending');
     if (pending.kind === 'permission') {
       const kind = decision === 'accept' ? 'allow_once' : 'reject_once';
       const option = pending.options.find(candidate => candidate.kind === kind);
@@ -176,7 +187,7 @@ export class CursorSession {
 
   respondUserInput(requestId, answers) {
     const pending = this.pendingInteractions.get(requestId);
-    if (!pending || pending.kind !== 'question') throw pluginError('invalid_input', 'Cursor question is no longer pending');
+    if (!pending || pending.turnId !== this.turnId || pending.kind !== 'question') throw pluginError('invalid_input', 'Cursor question is no longer pending');
     const response = [];
     for (const question of pending.questions) {
       const selected = Array.isArray(answers?.[question.id]) ? answers[question.id] : [answers?.[question.id]].filter(Boolean);
@@ -240,12 +251,16 @@ export class CursorSession {
       return true;
     }
     const params = object(message.params);
-    const requestId = `cursor-${String(message.id)}`;
+    if (params.sessionId != null && params.sessionId !== this.sessionId) {
+      this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
+      return true;
+    }
+    const requestId = `cursor-${typeof message.id === 'number' ? 'n' : 's'}-${String(message.id)}`;
     if (message.method === 'session/request_permission') {
       const options = Array.isArray(params.options) ? params.options : [];
       const toolId = params.toolCall?.toolCallId;
       const knownTool = this.tools.get(toolId) ?? params.toolCall ?? {};
-      const networkLike = knownTool.kind === 'fetch' || /\b(mcp|https?|network|fetch)\b/i.test(`${knownTool.title ?? ''}`);
+      const networkLike = knownTool.kind === 'fetch' || /\b(mcp|https?|network|fetch|curl|wget)\b/i.test(`${knownTool.title ?? ''}\n${bounded(knownTool.rawInput, 4_000)}`);
       if (this.modeId !== 'agent' || this.profile.approvalReviewer !== 'user' || networkLike) {
         const rejected = options.find(candidate => candidate.kind === 'reject_once');
         this.transport.respond(message.id, rejected ? { outcome: { outcome: 'selected', optionId: rejected.optionId } } : { outcome: { outcome: 'cancelled' } });
@@ -255,7 +270,7 @@ export class CursorSession {
         this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
         return true;
       }
-      this.pendingInteractions.set(requestId, { kind: 'permission', rpcId: message.id, options });
+      this.pendingInteractions.set(requestId, { kind: 'permission', rpcId: message.id, options, turnId: this.turnId });
       this.#event('approval.requested', { requestId, kind: params.toolCall?.kind ?? 'tool', command: params.toolCall?.title ?? null, availableDecisions: ['accept', 'cancel'] }, { requestId, toolCallId: params.toolCall?.toolCallId ?? null, approvalId: message.id });
       return true;
     }
@@ -265,7 +280,7 @@ export class CursorSession {
         this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
         return true;
       }
-      this.pendingInteractions.set(requestId, { kind: 'question', rpcId: message.id, questions });
+      this.pendingInteractions.set(requestId, { kind: 'question', rpcId: message.id, questions, turnId: this.turnId });
       this.#event('user_input.requested', { requestId, title: params.title ?? null, questions }, { requestId, toolCallId: params.toolCallId ?? null });
       return true;
     }
@@ -274,7 +289,7 @@ export class CursorSession {
         this.transport.respond(message.id, { outcome: { outcome: 'cancelled' } });
         return true;
       }
-      this.pendingInteractions.set(requestId, { kind: 'plan', rpcId: message.id });
+      this.pendingInteractions.set(requestId, { kind: 'plan', rpcId: message.id, turnId: this.turnId });
       this.#event('extension.updated', { namespace: 'dev.aibo.cursor', kind: 'plan', requestId, plan: params.plan ?? '', todos: params.todos ?? [] }, { requestId, toolCallId: params.toolCallId ?? null });
       this.#event('approval.requested', { requestId, kind: 'plan', command: params.name ?? 'Cursor plan', description: params.plan ?? '', availableDecisions: ['accept', 'cancel'] }, { requestId, toolCallId: params.toolCallId ?? null, approvalId: message.id });
       return true;

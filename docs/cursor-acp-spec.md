@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-状态：`0.1.3` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-16。
+状态：`0.1.4` 已实现；ACP 真机创建、文本轮次和跨进程恢复已验证。Aibo 隔离桌面已验证安装、发现、会话创建与消息路由，回复受 Cursor 服务 `resource_exhausted` 阻断。决策日期：2026-09-16。
 
 本项目采用 **Cursor CLI ACP** 作为本地 Cursor 会话的唯一首版后端：Aibo → Runtime 2.1 能力 Worker → `agent acp`。此前[能力调查](cursor-integration-research.md)用于背景比较；其中 SDK 优先级建议不再代表本项目选型。执行任务见[实现与验收 checklist](cursor-acp-checklist.md)。
 
