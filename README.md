@@ -3,6 +3,7 @@
 Aibo 独立插件开发起点，包含一个能力插件和一个呈现插件。
 
 - [插件开发文档](docs/plugin-development.md)
+- [Cursor ACP 实现规格](docs/cursor-acp-spec.md) · [开发与验收 checklist](docs/cursor-acp-checklist.md)
 - [能力插件](plugins/capability/)：读取能力、详情语义视图和刷新动作。
 - [呈现插件](plugins/presentation/)：Ocean 主题和 AgentStatusMark Worker 控件，其他控件继承宿主。
 
