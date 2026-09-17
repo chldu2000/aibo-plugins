@@ -1,9 +1,10 @@
 # Aibo 插件开发文档
 
-最近核对：2026-09-17，Aibo 提交 `dd2a458`（`feat: open durable queues to standard session plugins`）。已包含此前 `c867685`、`c817c9a`、`eaefa0c` 的目标、子 Agent 和持久队列改动，以及本次队列通用化。§3.9 / §4.4 的接入规则以 `dd2a458` 为准；本地提交尚未推送，不代表已发布版本。
+最近核对：2026-09-17，Aibo 提交 `b96a5d7`（`feat: support model context window selection`）。新增宿主上下文下拉框及内置 Codex/Pi 接入；§3.10 / §4.5 说明协议、规格来源和呈现方式。此前目标、子 Agent 和持久队列规则仍保留，§3.9 / §4.4 的队列接入以 `dd2a458` 为准。本地提交不代表已发布版本；安装前核对目标宿主包含该提交。
 
 | 提交 | 变化 | 开发者需要注意 |
 | --- | --- | --- |
+| `b96a5d7` | 模型上下文规格选择及 Codex/Pi 接入 | 新增 model.context-window、按模型的 contextWindows 与目录顶层 currentContextWindow；实际应用并确认后发布状态 |
 | `dd2a458` | 持久队列开放给标准会话插件 | 宿主派生 queue.manage；queue.steer 单独协商，未知投递不自动重发 |
 | `eaefa0c` | 内置 Codex/Pi 持久消息队列 | 稳定消息 ID、revision、暂停恢复及 uncertain 不自动重发 |
 | `c817c9a` | 子 Agent 进度与持久历史 | 新增 subagent 事件、独立卡片和 openSubagent 动作 |
@@ -246,6 +247,50 @@ sendNow 不等于中断：存在活动回合且支持 queue.steer 时使用原�
 
 停止、回合失败、应用重启暂停自动消费而不清空消息，重启将未完成发送标为 uncertain。切换会话或呈现不改变队列。每会话最多 100 条等待消息。附件在入队时从 Composer 分离并归属队列项，投递前重新校验；文件变化/缺失保留错误项。删除未发送项只清理其未发送附件，不影响后续草稿或已绑定历史附件。
 
+### 3.10 模型上下文规格选择
+
+上下文选择是独立的会话能力 `model.context-window`，不是推理强度、Fast 服务层级，也不是 §3.6 的 token 用量报告。宿主在 Fast 旁提供下拉框；能力存在、当前模型提供非空选项、目录加载完毕且会话可修改时才启用。旧目录不提供字段仍兼容，归一化为空选项和空当前值。
+
+在 session contribution 中声明自己命名空间下的能力操作，如 `dev.example.agent.model.context-window`，合同版本 `1.0.0`；Worker 实现该操作的路由，并在会话返回的 capabilities 中报告 `model.context-window`。只加标签或只改 UI 数字不构成支持。操作可沿用模型设置的 `effect: "read"`、`permissions: ["workspace.read"]`，但不能借此执行工作区写入或绕过审批。
+
+`model.select` 的 `action: "list"` 返回值中，各模型提供可选 `contextWindows`，目录顶层提供 `currentContextWindow`。以下数字仅为协议示例，不是通用规格：
+
+```json
+{
+  "models": [{
+    "id": "example-model",
+    "displayName": "Example",
+    "contextWindows": [
+      { "id": "standard", "label": "128K", "tokens": 128000 },
+      { "id": "extended", "label": "1M", "tokens": 1000000, "description": "Extended context" }
+    ]
+  }],
+  "current": "example-model",
+  "currentContextWindow": "standard"
+}
+```
+
+- `id` 是不透明选项值，不能从 `label` 解析请求参数或 token 数；`label` 用于显示。`description`、`tokens` 可选；tokens 若提供须为安全整数范围内的正数。
+- 选项按模型声明，不能把当前模型的规格复制到所有模型。`currentContextWindow` 必须来自已应用状态；未知时返回 null，不默认选中第一项冒充确认。
+- 操作接收 `{ "action": "list" }` 或 `{ "action": "set", "contextWindow": "extended" }`。宿主设置前重读模型目录并检查当前模型及选项；插件仍须独立验证支持范围，并拒绝运行中修改。
+- 设置成功后，插件返回更新后的 recovery 与 capabilities，并确保下一次目录读取反映真实状态。宿主通过重读目录确认 `currentContextWindow`，不会把请求值直接当作成功，也不向通用 execution profile 填造字段。
+- 将选择应用到原生会话或后续实际请求，持久化 recovery；恢复时重新核对支持范围。失败时保持或恢复原配置；模型切换不得串用旧规格。需要重启原生进程时保留历史，并维持当前宿主绑定的事件身份。
+
+#### 规格来源与原生生效路径
+
+不能仅依据一个本地 `contextWindow`、模型名称或其他服务商的同名模型生成更大档位。应记录原生目录或官方规格来源，核对实际 provider、API、端点及原生应用机制；目录可见也不等于账号有权限。
+
+| 当前内置插件 | 规格来源 | 实际应用与限制 |
+| --- | --- | --- |
+| Codex 2.0.9 | 原生 `model/list` 与同一 `CODEX_HOME` 的 `models_cache.json`，精确匹配 slug 的 context_window / max_context_window | 仅提供默认/最大两个不同窗口；缓存缺失、异常或超过 24 小时，以及自定义 provider、端点或 model_catalog_json 时不开放。专用 app-server 通过启动配置应用窗口和 90% 自动压缩阈值，恢复线程并读取运行配置确认 |
+| Pi 2.0.5 | SDK ModelRuntime 的合成目录；SDK 0.84.4 的 docs/models.md 和官方模型页明确记录的长上下文规格 | 仅官方 OpenAI Responses 的 gpt-5.6-sol / terra / luna 提供 272K / 1.05M；同时检查模型地址和认证解析后的真实地址。通过 AgentSession.setModel 应用到运行模型并保留推理强度与定价信息 |
+
+Codex 对已经加载的线程再次调用 `thread/resume.config`，可能成功返回却忽略新窗口，因此不能只检查 RPC 成功。当前实现重启会话专用 app-server 后恢复；不修改用户全局配置。Pi 的原生 API 没有独立的“申请 1M”参数，SDK 的运行窗口决定何时压缩及能够保留多少上下文，服务端仍按实际输入执行既有上限和权限检查。API 官方规格不能套到 Codex 订阅或代理服务上。
+
+当前验证边界：Codex CLI 0.153.4 的真实短请求已确认 872K → 272K 对应有效窗口 828,400 → 258,400（保留 5% 余量）；Pi 使用真实 SDK 与模型目录、截获传输的离线测试确认 1.05M → 272K 进入请求管线并保留历史。未发送百万 token 付费请求，这些结果不证明账号拥有额外权限。
+
+本项目 Cursor 0.1.8 已提供模型目录和选择，但尚未接入此上下文能力；宿主更新不会自动启用它。后续应按 Cursor 实际返回的规格和设置操作适配，保留原生选项 ID，不复制 Codex/Pi 的窗口值或推断付费权限。
+
 ## 4. 开发呈现插件
 
 `plugins/presentation/presentation.source.json` 是源清单，构建生成正式 `presentation.json`。不要手写摘要。
@@ -314,6 +359,14 @@ AgentSettingsForm 是宿主 UiKitAdapter 的可信控件，当前没有加入外
 
 GoalBar、SubagentCard、SubagentDialog 是宿主 UiKitAdapter 控件，本次未将它们加入外部 controls 目录；外部 workbench 通过视觉树和上述语义动作提供相应展示，不能声明同名 controls 获得宿主接口。队列状态、详情历史、草稿和附件归属仍由宿主维护，切换呈现不能清空或重新派发。
 
+### 4.5 上下文下拉框的呈现合同
+
+整窗呈现读取 `data.conversation.modelCatalog.current.contextWindows` 和目录顶层的 `currentContextWindow`，将下拉框放在 Fast 旁。旧宿主或无支持时允许字段缺失；无选项、加载中、运行中、忙碌或归档状态均不得提供可执行选择。
+
+从 `data.conversationActions` 获取 `operation === 'selectContextWindow'` 的宿主动作，将其 token 绑定到选择控件的 `events.change`，以字符串 value 提交所选 ID。动作参数为 `[当前模型 reference, ...允许的选项 ID]`，由宿主生成，不自行构造。宿主验证快照 revision、模型身份和允许值，拒绝旧页面、已移除选项和伪造值；提交后保留原确认值，收到新状态再更新选择。
+
+该操作不是 `ModelMatrix` 的新增 click action kind，也不是把上下文 ID 作为推理强度发送。内置双皮肤通过可信 `UiKitAdapter.ModelContextSelect` 实现；该控件未加入外部 `PresentationControlData` 控件目录。仅覆盖状态控件并继承宿主其余界面的本项目呈现骨架无需改动，自定义整窗 workbench 可参考宿主 `packages/presentation-workbench/conversation.js`。
+
 ## 5. 安装与验收
 
 1. 执行 `pnpm run verify`，记录输出的 capability、cursor、presentation 三个绝对路径。
@@ -339,6 +392,16 @@ Fast 和设置协议的扩展实现还需验证：
 
 相关宿主检查：`node --test test/agent-settings.test.mjs test/model-configuration.test.mjs test/composer-fast-tier.test.mjs test/presentation-controls.test.mjs test/presentation-conversation.test.mjs test/session-usage.test.mjs`。设置数据库与完整链路测试、双皮肤浏览器探针见 `docs/agent-plugin-settings.md`。本项目的 verify 不覆盖这些扩展行为。
 
+上下文选择扩展还需验证：
+
+- 能力或选项缺失、旧目录、加载中、运行中和归档时正确禁用；未知当前值不伪造选中项。
+- 按模型区分选项；拒绝过期动作、非法 ID、切换模型后的旧选择及通过 control 绕过运行中禁用。
+- 设置实际进入原生配置或请求管线，重读目录确认；原生拒绝或未确认时回滚并保留错误。
+- 首次发送前切换、已有历史切换、Worker 重启恢复、资源重载及再次换模型均正确；保留会话历史和事件身份。
+- 规格来源缺失/过期、自定义端点和认证地址重定向时保守禁用；不因目录可见而隐藏或吞掉权限错误。
+
+宿主对应检查：`node --test test/provider-context-window.test.mjs test/model-context-select.test.mjs test/model-configuration.test.mjs test/presentation-conversation.test.mjs`，以及 `cargo test --manifest-path src-tauri/Cargo.toml context_window --lib`。区分模拟协议测试、真实 SDK 传输截获与真实付费 API 请求，记录验证边界。
+
 目标、子 Agent 与持久队列还需验证：
 
 - 旧 release 不出现未支持的目标按钮；恢复读/写授权、暂停失败、原生连续回合及预算耗尽；恢复不消费草稿或附件。
@@ -362,9 +425,11 @@ Fast 和设置协议的扩展实现还需验证：
 - `src-tauri/src/session_queue.rs` / `src-tauri/src/session_history.rs` / `src-tauri/src/session_projection.rs`：队列适用范围、历史持久化与事件投影。
 - `src/lib/presentation-runtime/conversation.ts` / `packages/presentation-workbench/timeline.js`：工作台动作门禁及子 Agent 卡片参考。
 - `docs/plugin-development_zh.md`：官方插件开发指南。
+- `docs/plugin-development.md`：上下文目录合同及内置 Codex/Pi 规格来源记录。
 - `docs/agent-plugin-settings.md` / `contracts/agent-settings.v1.schema.json` / `packages/plugin-protocol/src/settings.ts`：设置声明、继承、快照和验证。
 - `src-tauri/capability-plugins/codex/engine.mjs` / `plugin.json`（同目录）：当前服务层级能力及实际执行参考。
-- `src/lib/app/model-configuration.ts` / `src/lib/app/session-usage.ts`：服务层级校验及上下文用量归一化。
+- `src-tauri/capability-plugins/pi/engine.mjs` / `plugin.json`（同目录）：Pi SDK 上下文选择与恢复参考。
+- `src/lib/app/model-configuration.ts` / `src/lib/app/session-usage.ts`：模型设置确认、服务层级/上下文规格校验及用量归一化。
 - `docs/plugin-platform-support-matrix.md`：协议与平台支持矩阵。
 - `docs/presentation-package.md`：完整呈现包、视觉树与动作合同。
 - `contracts/plugin-manifest.v2.schema.json`：能力清单 schema。
