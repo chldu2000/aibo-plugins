@@ -57,11 +57,11 @@
 - [ ] 插件升级后已有会话保留 release/contribution 绑定；新建会话使用新版本。
 - [x] additionalInstructions 校验 schema/version，每次调用读取快照且不改用户原消息。
 - [ ] 验证三层继承、空字符串覆盖、清空本层、运行中保存下一轮生效和 contribution 隔离。
-- [x] 不支持的附件、模型、推理强度明确拒绝；无未实现的 Fast/fork/goal 能力入口。
+- [x] 不支持的附件、推理强度明确拒绝；没有 ACP 模型配置时拒绝显式模型请求；无未实现的 Fast/fork/goal 能力入口。
 - [x] 四个标准生命周期操作与共享合同逐字段一致，由宿主派生基础 `queue.manage`；provider 不伪造原生队列能力。
 - [x] 未实现可靠 ACP steering 时不声明 queue operation、`queue.manage` 或 `queue.steer`；运行中消息等待普通 FIFO 派发。
 - [x] 不报告未实现的 Aibo goal 能力；Cursor 结构化 task 只映射字段充分的 `subagent.updated`，不伪造缺失的 `subagent.message` 过程历史。
-- [ ] 若扩展模型选择，增加目录、切换、恢复、迟到动作和真实执行模型验证后再报告 model.select。
+- [x] 0.1.8 增加模型目录、切换确认、恢复、迟到响应和下一轮模型路由测试；按 ACP 配置动态报告 model.select。真实验收结果见 validation 的 0.1.8 节。
 
 完成条件：重启恢复和调用间配置更新通过真实桌面流程；不支持能力不会显示成可用。
 

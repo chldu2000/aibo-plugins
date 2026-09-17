@@ -227,3 +227,118 @@ test('取消父回合时未完成的 Cursor 子 Agent 收敛为 interrupted', as
   assert.equal((await turn).status,'interrupted');
   assert.equal(events.filter(event=>event.type==='subagent.updated').at(-1).payload.status,'interrupted');
 });
+
+class ModelTransport extends FakeTransport {
+  constructor() { super(); this.model = 'auto'; this.mode = 'ask'; }
+  config() { return { configOptions: [
+    { id: 'mode', type: 'select', currentValue: this.mode, options: ['ask', 'agent', 'plan'].map(value => ({ value })) },
+    { id: 'model', category: 'model', type: 'select', currentValue: this.model, options: [
+      { value: 'auto', name: 'Auto' }, { value: 'premium', name: 'Premium', description: 'A model listed before entitlement checking' },
+    ] },
+  ] }; }
+  async request(method, params) {
+    if (['session/new', 'session/load', 'session/set_config_option'].includes(method)) {
+      this.requests.push({ method, params });
+      if (method === 'session/set_config_option') {
+        if (this.rejectSelection) throw new Error('Model selection denied');
+        if (this.deferSelection) await this.deferSelection;
+        if (params.configId === 'mode') this.mode = params.value;
+        else if (!this.ignoreSelection) this.model = params.value;
+      }
+      return { sessionId: 'cursor-session-1', ...this.config() };
+    }
+    return super.request(method, params);
+  }
+}
+const openModelSession = (session, overrides = {}) => session.open({ mode: 'create', workspaceId: 'w1', workspacePath: '/workspace', executionProfile: askProfile, permissions: ['workspace.read'], ...overrides });
+
+test('model catalog preserves Auto and premium choices; selection affects the next ACP turn', async () => {
+  const transport = new ModelTransport(), session = new CursorSession({ transportFactory: () => transport });
+  const opened = await openModelSession(session);
+  assert.ok(opened.capabilities.includes('model.select'));
+  const catalog = await session.models({ action: 'list' });
+  assert.equal(catalog.current, 'auto');
+  assert.deepEqual(catalog.models.map(model => model.displayName), ['Auto', 'Premium']);
+  assert.equal((await session.models({ action: 'set', reference: 'premium' })).current, 'premium');
+  assert.equal(session.recovery().data.modelId, 'premium');
+  const turn = session.prompt({ text: 'hello', turnId: 'model-turn' });
+  assert.equal(transport.model, 'premium');
+  await assert.rejects(session.models({ action: 'set', reference: 'auto' }), /idle session/);
+  transport.finishPrompt({ stopReason: 'end_turn' });
+  await turn;
+  await session.close();
+});
+
+test('model restore applies saved selection; host profile overrides recovery and old recovery remains valid', async () => {
+  const first = new CursorSession({ transportFactory: () => new ModelTransport() });
+  await openModelSession(first);
+  await first.models({ action: 'set', reference: 'premium' });
+  const recovery = first.recovery(); await first.close();
+  for (const [model, expected] of [[null, 'premium'], ['auto', 'auto']]) {
+    const transport = new ModelTransport(), session = new CursorSession({ transportFactory: () => transport });
+    await openModelSession(session, { mode: 'resume', recovery, executionProfile: { ...askProfile, model } });
+    assert.equal(transport.model, expected);
+    assert.equal((await session.models({ action: 'list' })).current, expected);
+    await session.close();
+  }
+  delete recovery.data.modelId;
+  const legacy = new CursorSession({ transportFactory: () => new ModelTransport() });
+  await openModelSession(legacy, { mode: 'resume', recovery });
+  assert.equal((await legacy.models({ action: 'list' })).current, 'auto');
+  await legacy.close();
+});
+
+test('missing model config does not advertise model selection or silently accept requested models', async () => {
+  const session = new CursorSession({ transportFactory: () => new FakeTransport() });
+  assert.equal((await openModelSession(session)).capabilities.includes('model.select'), false);
+  await assert.rejects(session.models({ action: 'list' }), /did not provide/);
+  await session.close();
+  await assert.rejects(openModelSession(session, { executionProfile: { ...askProfile, model: 'auto' } }), /did not provide/);
+});
+
+test('configuration updates refresh idle model state and ignore foreign sessions', async () => {
+  const transport = new ModelTransport(), session = new CursorSession({ transportFactory: () => transport });
+  await openModelSession(session);
+  transport.model = 'premium';
+  const notify = sessionId => transport.emitNotification({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'config_option_update', ...transport.config() } } });
+  notify('foreign'); assert.equal((await session.models({ action: 'list' })).current, 'auto');
+  notify(session.sessionId); assert.equal((await session.models({ action: 'list' })).current, 'premium');
+  await session.close();
+});
+
+test('model validation and backend rejection never fake selection success', async () => {
+  const transport = new ModelTransport(), session = new CursorSession({ transportFactory: () => transport });
+  await openModelSession(session);
+  const before = transport.requests.length;
+  await assert.rejects(session.models({ action: 'set', reference: 'unknown' }), /not in the session catalog/);
+  assert.equal(transport.requests.length, before);
+  transport.rejectSelection = true;
+  await assert.rejects(session.models({ action: 'set', reference: 'premium' }), /Model selection denied/);
+  assert.equal((await session.models({ action: 'list' })).current, 'auto');
+  transport.rejectSelection = false; transport.ignoreSelection = true;
+  await assert.rejects(session.models({ action: 'set', reference: 'premium' }), /did not confirm/);
+  assert.equal((await session.models({ action: 'list' })).current, 'auto');
+  await session.close();
+});
+
+test('late model response cannot modify a closed session', async () => {
+  const transport = new ModelTransport(), session = new CursorSession({ transportFactory: () => transport });
+  await openModelSession(session);
+  let finish;
+  transport.deferSelection = new Promise(resolve => { finish = resolve; });
+  const selection = session.models({ action: 'set', reference: 'premium' });
+  await session.close(); finish();
+  await assert.rejects(selection, /session changed/);
+  assert.equal(session.phase, 'stopped');
+  assert.equal(session.capabilities().includes('model.select'), false);
+});
+
+test('listed premium model can fail at prompt time and preserves the actual entitlement error', async () => {
+  const transport = new ModelTransport(), events = [], session = new CursorSession({ transportFactory: () => transport, emit: event => events.push(event) });
+  await openModelSession(session);
+  await session.models({ action: 'set', reference: 'premium' });
+  const turn = session.prompt({ text: 'hello', turnId: 'denied' });
+  transport.failPrompt(new Error('This model requires a paid subscription'));
+  await assert.rejects(turn, /requires a paid subscription/);
+  assert.equal(events.find(event => event.type === 'turn.failed').payload.message, 'This model requires a paid subscription');
+});

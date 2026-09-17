@@ -34,11 +34,17 @@ async function run(){try {
   if(!session.capabilities.includes('turn.send')||!session.capabilities.includes('session.resume'))throw Error(`Cursor capabilities missing: ${JSON.stringify(session.capabilities)}`);
   if(!session.capabilities.includes('queue.manage'))throw Error(`Host queue capability missing: ${JSON.stringify(session.capabilities)}`);
   if(session.capabilities.includes('queue.steer'))throw Error(`Cursor unexpectedly negotiated native steering: ${JSON.stringify(session.capabilities)}`);
+  if (!session.capabilities.includes('model.select')) throw Error('Cursor model selection capability missing');
+  const catalog = await invoke('get_session_models', { sessionId: session.id });
+  const auto = catalog.models.find(model => model.label.toLowerCase() === 'auto');
+  if (!auto || !catalog.current) throw Error('Host model catalog must include Auto and the current model');
+  const selected = await invoke('invoke_agent_capability', { sessionId: session.id, capability: 'model.select', input: { action: 'set', reference: catalog.current.reference } });
+  if (selected.current !== catalog.current.reference) throw Error('Host model selection did not round-trip');
   if(config.contractOnly){
     await invoke('close_agent_session',{sessionId:session.id});
     await invoke('set_agent_plugin_enabled',{id:installation.id,enabled:false});
     await invoke('uninstall_agent_plugin',{id:installation.id});
-    await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,mode:'contract-only',pluginVersion:listed.version,sessionId:session.id,capabilities:session.capabilities})});
+    await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,mode:'contract-only',modelCount:catalog.models.length,auto:auto.reference,pluginVersion:listed.version,sessionId:session.id,capabilities:session.capabilities})});
     return;
   }
   const completed=await prompt(session.id,workspace.id,'Reply with exactly: AIBO_CURSOR_DESKTOP_OK');

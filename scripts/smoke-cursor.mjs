@@ -31,6 +31,14 @@ const invoke=(invocationId,capability,operationId,input,turnId=null)=>send('capa
 const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'disabled',model:null,reasoningEffort:null};
 const opened=await invoke('open','aibo.session.open','dev.aibo.cursor.session.open',{mode:'create',executionProfile:profile,recovery:null});
 if(opened.output.nativeSessionId!=='fake-cursor-session')throw new Error('Cursor package did not open the fake ACP session');
+if (!opened.output.capabilities.includes('model.select')) throw new Error('Cursor package did not negotiate model selection');
+const catalog = await invoke('models', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'list' });
+if (catalog.output.current !== 'auto' || catalog.output.models.length !== 2) throw new Error('Model catalog missing Auto or premium choice');
+const selected = await invoke('select', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'premium' });
+if (selected.output.current !== 'premium' || selected.output.recovery.data.modelId !== 'premium') throw new Error('Model selection was not persisted');
+const premium = await invoke('premium', 'aibo.session.turn', 'dev.aibo.cursor.session.turn', { text: 'hello' }, 'premium-turn');
+if (premium.output.status !== 'completed' || !events.some(event => event.payload?.delta === 'AIBO_CURSOR_PREMIUM_OK')) throw new Error('Selected model was not used for the next turn');
+await invoke('auto', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'auto' });
 const turn=await invoke('turn','aibo.session.turn','dev.aibo.cursor.session.turn',{text:'hello'},'smoke-turn');
 if(turn.output.status!=='completed'||!events.some(event=>event.type==='message.delta'&&event.payload.delta==='AIBO_CURSOR_OK')||!events.some(event=>event.type==='turn.completed'))throw new Error('Cursor package did not stream and complete the fake turn');
 child.stdin.end();

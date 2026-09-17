@@ -36,3 +36,13 @@
 - 当前宿主会把未知第三方 provider 的 enforcement backend 设为 `Unnegotiated`，所以 Aibo 只会给 Cursor 分派受限的 ask/read-only profile。插件实现了 edit/审批合同，但在宿主增加可协商 enforcement 前不能从当前 Aibo UI 使用。
 
 已验证的执行配置：Ask/Plan 只读组合，以及 Edit 配置的静态权限校验与假 ACP 审批闭环。真实 Edit 写入、完整桌面成功轮次、双皮肤交互、Applications 启动 PATH 和 UI 内取消/审批仍需桌面验收，因此 checklist 保持未勾选。
+
+## 0.1.8 — 模型目录与选择（2026-09-17）
+
+- 本机 Cursor CLI `2026.09.15-d2fe57e`，宿主 `188782b`。模型目录通过 ACP `configOptions` 协商，不硬编码模型或订阅权限。
+- `node scripts/probe-cursor-models.mjs --prompt` 成功：返回 38 个选项；Auto reference 为 `default[]`；切换到另一目录项再切回 Auto，Auto 返回精确文本 `AIBO_AUTO_OK`；关闭 ACP 进程后通过 `session/load` 恢复，当前选项仍为 Auto。探针最终恢复原模型配置。此结果证明选中 Auto 后可执行，不声称能识别 Auto 内部实际路由的基础模型。
+- `pnpm run probe:cursor:desktop -- --contract-only` 成功：隔离宿主安装并启用新包，公开 `model.select`；`get_session_models` 返回 38 项和 Auto，`invoke_agent_capability(model.select)` 的设置请求及返回值通过，随后关闭、禁用、卸载。未改动日常 Aibo 数据，也没有逐一使用付费模型。探针主动终止 Tauri 子进程可能打印 ELIFECYCLE；以 `CURSOR_DESKTOP_RESULT.ok` 和探针退出码为准。
+- 首次隔离安装发现宿主 operation schema 不接受 `if/then`；已改为受支持的 `anyOf`，再次安装通过。
+- 回归测试覆盖缺少模型配置时不宣告能力、Auto/付费项共存、实际下一轮路由、切换拒绝与确认不一致、旧恢复数据兼容、宿主 profile 优先级、配置更新与外来会话隔离、关闭后的迟到响应，以及付费模型在 prompt 时失败保留原始错误。
+- 模型目录只表达后端选项，不承诺账户可调用；没有新增订阅套餐、锁定状态、推理强度或 Fast 能力。
+- 新功能只适用于新 release 的会话。原有会话仍固定绑定旧插件版本；安装后需选择新版本创建会话。

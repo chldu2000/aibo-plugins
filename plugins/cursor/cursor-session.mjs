@@ -39,7 +39,8 @@ export function validateExecutionProfile(profile, permissions) {
   if (p.schema !== 'aibo.execution-profile/v1') throw pluginError('invalid_input', 'Cursor requires execution profile v1');
   const mode = MODE_BY_INTERACTION[p.interactionMode];
   if (!mode) throw pluginError('invalid_input', 'Cursor requires a supported interaction mode');
-  if (p.model != null || p.reasoningEffort != null) throw pluginError('unsupported', 'Cursor model and reasoning selection are not enabled in this release');
+  if (p.model != null && (typeof p.model !== 'string' || !p.model.trim())) throw pluginError('invalid_input', 'Cursor model must be a non-empty reference');
+  if (p.reasoningEffort != null) throw pluginError('unsupported', 'Cursor reasoning selection is not enabled in this release');
   if (mode === 'agent') {
     if (!permissions.includes('workspace.write')) throw pluginError('permission_denied', 'Cursor edit mode requires workspace.write');
     if (p.filesystemPolicy !== 'workspace-write') throw pluginError('unsupported', 'Cursor edit mode currently supports workspace-write only');
@@ -73,6 +74,7 @@ export class CursorSession {
     this.completedTools = new Set();
     this.subagents = new Map();
     this.phase = 'stopped';
+    this.modelConfig = null;
   }
 
   async open({ mode, workspaceId, workspacePath, executionProfile, recovery, permissions }) {
@@ -115,7 +117,10 @@ export class CursorSession {
         if (typeof result?.sessionId !== 'string' || !result.sessionId) throw pluginError('invalid_output', 'Cursor did not return a session ID');
         this.sessionId = result.sessionId;
       }
+      this.#readModelConfig(result);
       await this.#selectMode(result, policy.mode);
+      const requestedModel = policy.profile.model ?? restored?.modelId;
+      if (requestedModel != null) await this.#setModel(requestedModel);
       this.phase = 'ready';
       this.#event('session.started', { mode: this.modeId });
       return this.snapshot();
@@ -203,7 +208,7 @@ export class CursorSession {
     }
     this.pendingInteractions.delete(requestId);
     this.#event('approval.resolved', { requestId, decision }, { requestId, approvalId: pending.rpcId });
-    return { resolved: true, recovery: this.recovery(), capabilities: CAPABILITIES };
+    return { resolved: true, recovery: this.recovery(), capabilities: this.capabilities() };
   }
 
   respondUserInput(requestId, answers) {
@@ -219,12 +224,54 @@ export class CursorSession {
     this.transport.respond(pending.rpcId, { outcome: { outcome: 'answered', answers: response } });
     this.pendingInteractions.delete(requestId);
     this.#event('user_input.resolved', { requestId }, { requestId });
-    return { resolved: true, recovery: this.recovery(), capabilities: CAPABILITIES };
+    return { resolved: true, recovery: this.recovery(), capabilities: this.capabilities() };
   }
 
-  snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: CAPABILITIES }; }
+  capabilities() { return this.modelConfig ? [...CAPABILITIES, 'model.select'] : [...CAPABILITIES]; }
+
+  async models(input) {
+    if (this.phase !== 'ready' || !this.sessionId) throw pluginError('busy', 'Cursor model configuration requires an idle session');
+    if (!this.modelConfig) throw pluginError('unsupported', 'Cursor did not provide model configuration');
+    if (input.action === 'set') {
+      const transport = this.transport;
+      this.phase = 'configuring';
+      try { await this.#setModel(input.reference); }
+      finally { if (this.transport === transport && this.phase === 'configuring') this.phase = 'ready'; }
+    } else if (input.action !== 'list') throw pluginError('invalid_input', 'Unknown Cursor model action');
+    return { current: this.modelConfig.current, models: this.modelConfig.models.map(model => ({ ...model })), recovery: this.recovery() };
+  }
+
+  #readModelConfig(result) {
+    if (!Array.isArray(result?.configOptions)) return;
+    const config = result.configOptions.find(option => option.category === 'model' || option.id === 'model');
+    if (!config || config.type && config.type !== 'select' || typeof config.id !== 'string' || typeof config.currentValue !== 'string') {
+      this.modelConfig = null;
+      return;
+    }
+    const options = (config.options ?? []).flatMap(option => Array.isArray(option.options) ? option.options : [option]);
+    const models = options.filter(option => typeof option.value === 'string' && option.value.length).map(option => ({
+      id: option.value, reference: option.value, displayName: option.name || option.value,
+      description: option.description ?? null,
+    }));
+    // The directory describes choices, not subscription entitlements.
+    this.modelConfig = models.length ? { id: config.id, current: config.currentValue, models } : null;
+  }
+
+  async #setModel(reference) {
+    const config = this.modelConfig;
+    if (!config) throw pluginError('unsupported', 'Cursor did not provide model configuration');
+    if (typeof reference !== 'string' || !config.models.some(model => model.reference === reference)) throw pluginError('invalid_input', 'Cursor model is not in the session catalog');
+    if (config.current === reference) return;
+    const transport = this.transport, sessionId = this.sessionId;
+    const result = await transport.request('session/set_config_option', { sessionId, configId: config.id, value: reference });
+    if (this.transport !== transport || this.sessionId !== sessionId || transport.closed) throw pluginError('invalid_session', 'Cursor session changed during model selection');
+    this.#readModelConfig(result);
+    if (!Array.isArray(result?.configOptions) || this.modelConfig?.current !== reference) throw pluginError('invalid_output', 'Cursor did not confirm the requested model');
+  }
+
+  snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: this.capabilities() }; }
   recovery() {
-    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId } };
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, ...(this.modelConfig ? { modelId: this.modelConfig.current } : {}) } };
   }
 
   async close() {
@@ -240,6 +287,7 @@ export class CursorSession {
     this.pendingInteractions.clear();
     this.phase = 'stopped';
     this.sessionId = null;
+    this.modelConfig = null;
     if (transport) await transport.close();
     return { accepted: true };
   }
@@ -253,6 +301,7 @@ export class CursorSession {
     const current = mode?.currentValue ?? result?.modes?.currentModeId;
     if (current !== expected) {
       const changed = await this.transport.request('session/set_config_option', { sessionId: this.sessionId, configId: 'mode', value: expected });
+      this.#readModelConfig(changed);
       const updated = changed?.configOptions?.find(option => option.id === 'mode')?.currentValue;
       if (updated !== undefined && updated !== expected) throw pluginError('invalid_output', 'Cursor did not apply the requested mode');
     }
@@ -340,6 +389,10 @@ export class CursorSession {
     }
     if (['cursor/update_todos', 'cursor/generate_image'].includes(message.method)) {
       if (this.turnId) this.#event('extension.updated', { namespace: 'dev.aibo.cursor', kind: message.method.slice('cursor/'.length), ...object(message.params) });
+      return;
+    }
+    if (message.method === 'session/update' && this.phase !== 'loading' && message.params?.sessionId === this.sessionId && message.params?.update?.sessionUpdate === 'config_option_update') {
+      this.#readModelConfig(message.params.update);
       return;
     }
     if (message.method !== 'session/update' || this.phase === 'loading' || message.params?.sessionId !== this.sessionId || !this.turnId) return;

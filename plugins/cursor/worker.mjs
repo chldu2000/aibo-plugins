@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { serveCapability } from '@aibo/capability-runtime/stdio';
-import { CursorSession, CAPABILITIES, additionalInstructionsFromSettings } from './cursor-session.mjs';
+import { CursorSession, additionalInstructionsFromSettings } from './cursor-session.mjs';
 
 const manifest = JSON.parse(readFileSync(new URL('./plugin.json', import.meta.url), 'utf8'));
 const contribution = manifest.contributions[0];
@@ -31,6 +31,7 @@ async function invoke(request, tools) {
     if (request.capability === 'aibo.session.open') {
       return await session.open({ mode: input.mode, workspaceId: context.workspaceId, workspacePath: context.workspacePath, executionProfile: input.executionProfile, recovery: input.recovery, permissions: context.permissions });
     }
+    if (request.capability === 'dev.aibo.cursor.model.select') return await session.models(input);
     if (request.capability === 'aibo.session.close') return await session.close();
     if (request.capability === 'aibo.session.turn' || request.capability === 'aibo.session.turn.write') {
       if (!context.turnId || typeof input.text !== 'string' || !input.text.trim()) throw Object.assign(new Error('Cursor turn requires text and turn identity'), { kind: 'invalid_input' });
@@ -50,6 +51,7 @@ async function invoke(request, tools) {
 async function control(request, { invocation }) {
   if (!owner || owner.request.invocationId !== invocation.invocationId) throw Object.assign(new Error('No matching Cursor invocation'), { kind: 'invalid_input' });
   const input = inputOf(request);
+  if (request.capability === 'dev.aibo.cursor.model.select') throw Object.assign(new Error('Cursor model configuration requires an idle session'), { kind: 'busy' });
   if (request.capability === 'aibo.session.cancel') return session.cancel();
   if (request.capability === 'dev.aibo.cursor.approval.respond') return session.respondApproval(input.requestId, input.decision);
   if (request.capability === 'dev.aibo.cursor.user-input.respond') return session.respondUserInput(input.requestId, input.answers);

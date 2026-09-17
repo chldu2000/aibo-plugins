@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES } from '../plugins/cursor/cursor-session.mjs';
 
@@ -34,4 +35,22 @@ test('Cursor manifest qualifies for the host queue without claiming native steer
   assert.equal(CAPABILITIES.includes('queue.manage'), false);
   assert.equal(CAPABILITIES.includes('queue.steer'), false);
   assert.equal(CAPABILITIES.some(capability => capability.startsWith('goal.')), false);
+});
+
+
+test('Cursor model operation validates host inputs and the release manifest', async () => {
+  const require = createRequire(path.join(aibo, 'package.json'));
+  const Ajv = require('ajv/dist/2020').default;
+  const ajv = new Ajv({ strict: false, formats: { uri: true } });
+  const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
+  const validate = ajv.compile(await json(path.join(aibo, 'contracts/plugin-manifest.v2.schema.json')));
+  assert.ok(validate(manifest), JSON.stringify(validate.errors));
+  const operation = manifest.contributions[0].operations.find(operation => operation.capability.id === 'dev.aibo.cursor.model.select');
+  assert.ok(operation);
+  const input = ajv.compile(operation.inputSchema);
+  assert.equal(input({ action: 'list' }), true);
+  assert.equal(input({ action: 'set', reference: 'default[]' }), true);
+  assert.equal(input({ action: 'set' }), false);
+  assert.equal(input({ action: 'set', reference: '' }), false);
+  assert.equal(input({ action: 'subscribe' }), false);
 });
