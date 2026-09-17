@@ -3,7 +3,7 @@ import { modelParameters, selectValues } from './model-config.mjs';
 
 export const CAPABILITIES = [
   'session.create', 'session.resume', 'session.close', 'turn.send', 'turn.cancel',
-  'stream.text', 'approval.respond', 'user-input.respond',
+  'stream.text', 'approval.respond', 'user-input.respond', 'command.list',
 ];
 
 const RECOVERY_SCHEMA = 'dev.aibo.cursor.recovery';
@@ -65,11 +65,15 @@ export function additionalInstructionsFromSettings(settings) {
 }
 
 export class CursorSession {
-  constructor({ transportFactory = options => new AcpTransport(options), emit = () => {}, pluginVersion = '0.1.0', cancelGraceMs = 5_000 } = {}) {
+  constructor({ transportFactory = options => new AcpTransport(options), emit = () => {}, pluginVersion = '0.1.0', cancelGraceMs = 5_000, commandWaitMs = 10_000 } = {}) {
     this.transportFactory = transportFactory;
     this.emit = emit;
     this.pluginVersion = pluginVersion;
     this.cancelGraceMs = cancelGraceMs;
+    this.commandWaitMs = commandWaitMs;
+    this.commandCatalog = null;
+    this.earlyCommands = new Map();
+    this.commandWaiters = new Set();
     this.pendingInteractions = new Map();
     this.tools = new Map();
     this.completedTools = new Set();
@@ -95,8 +99,8 @@ export class CursorSession {
     this.modeId = policy.mode;
     const transport = this.transportFactory({ cwd: workspacePath }).start();
     this.transport = transport;
-    this.removeRequest = transport.onRequest(message => this.#handleRequest(message));
-    this.removeNotification = transport.onNotification(message => this.#handleNotification(message));
+    this.removeRequest = transport.onRequest(message => this.transport === transport && this.#handleRequest(message));
+    this.removeNotification = transport.onNotification(message => { if (this.transport === transport) this.#handleNotification(message); });
     try {
       this.phase = 'initializing';
       const initialized = await transport.request('initialize', {
@@ -120,6 +124,8 @@ export class CursorSession {
         if (typeof result?.sessionId !== 'string' || !result.sessionId) throw pluginError('invalid_output', 'Cursor did not return a session ID');
         this.sessionId = result.sessionId;
       }
+      if (this.earlyCommands.has(this.sessionId)) this.#readCommands(this.earlyCommands.get(this.sessionId));
+      this.earlyCommands.clear();
       this.#readModelConfig(result);
       await this.#selectMode(result, policy.mode);
       const requestedModel = policy.profile.model ?? restored?.modelId;
@@ -150,7 +156,9 @@ export class CursorSession {
     this.completedTools.clear();
     this.subagents.clear();
     this.#event('turn.started', {});
-    const promptText = additionalInstructions.trim() ? `${additionalInstructions.trim()}\n\n${text}` : text;
+    // Cursor parses leading slash commands before processing ordinary prompt text.
+    // Prefixing settings would turn a native command into a model request.
+    const promptText = !/^\s*\/\S+/.test(text) && additionalInstructions.trim() ? `${additionalInstructions.trim()}\n\n${text}` : text;
     try {
       const result = await this.transport.request('session/prompt', {
         sessionId: this.sessionId,
@@ -235,6 +243,36 @@ export class CursorSession {
   }
 
   capabilities() { return this.modelConfig ? [...CAPABILITIES, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : [...CAPABILITIES]; }
+
+  async commands() {
+    if (!this.sessionId || !this.transport || this.transport.closed) throw pluginError('invalid_session', 'Cursor command directory requires an open session');
+    const transport = this.transport, sessionId = this.sessionId;
+    if (this.commandCatalog === null) {
+      await new Promise(resolve => {
+        const done = () => { clearTimeout(timer); this.commandWaiters.delete(done); resolve(); };
+        const timer = setTimeout(done, this.commandWaitMs);
+        this.commandWaiters.add(done);
+      });
+    }
+    if (this.transport !== transport || this.sessionId !== sessionId || transport.closed) throw pluginError('invalid_session', 'Cursor session changed while loading commands');
+    return { commands: (this.commandCatalog ?? []).map(command => ({ ...command })) };
+  }
+
+  #readCommands(available) {
+    if (!Array.isArray(available)) return;
+    const seen = new Set();
+    this.commandCatalog = available.slice(0, 512).flatMap(command => {
+      if (typeof command?.name !== 'string' || !/^[^\s/\x00-\x1f\x7f][^\s\x00-\x1f\x7f]{0,255}$/.test(command.name)) return [];
+      const key = command.name.toLowerCase();
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ name: command.name, description: typeof command.description === 'string' ? command.description.slice(0, 4000) : null,
+        source: 'agent', category: 'agent', execution: 'prompt',
+        ...(typeof command.input?.hint === 'string' ? { argumentHint: command.input.hint.slice(0, 1000) } : {}),
+      }];
+    });
+    for (const done of this.commandWaiters) done();
+  }
 
   parameters() { return modelParameters(this.configOptions ?? [], this.modelConfig?.current); }
 
@@ -337,6 +375,9 @@ export class CursorSession {
     }
     this.removeRequest?.(); this.removeNotification?.();
     this.transport = null;
+    this.commandCatalog = null;
+    this.earlyCommands.clear();
+    for (const done of this.commandWaiters) done();
     this.pendingInteractions.clear();
     this.phase = 'stopped';
     this.sessionId = null;
@@ -425,6 +466,7 @@ export class CursorSession {
   #handleNotification(message) {
     if (message.method === 'transport/closed') {
       this.phase = 'failed';
+      for (const done of this.commandWaiters) done();
       if (this.turnId) this.#event('adapter.crashed', { message: message.params?.message ?? 'Cursor ACP exited' });
       return;
     }
@@ -444,6 +486,14 @@ export class CursorSession {
     }
     if (['cursor/update_todos', 'cursor/generate_image'].includes(message.method)) {
       if (this.turnId) this.#event('extension.updated', { namespace: 'dev.aibo.cursor', kind: message.method.slice('cursor/'.length), ...object(message.params) });
+      return;
+    }
+    if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'available_commands_update') {
+      const { sessionId, update } = message.params;
+      if (sessionId === this.sessionId && this.sessionId) this.#readCommands(update.availableCommands);
+      else if (['opening', 'loading'].includes(this.phase) && typeof sessionId === 'string' && Array.isArray(update.availableCommands) && this.earlyCommands.size < 16) {
+        this.earlyCommands.set(sessionId, update.availableCommands.slice(0, 512));
+      }
       return;
     }
     if (message.method === 'session/update' && this.phase !== 'loading' && message.params?.sessionId === this.sessionId && message.params?.update?.sessionUpdate === 'config_option_update') {

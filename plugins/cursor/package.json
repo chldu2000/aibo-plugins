@@ -1,6 +1,6 @@
 {
   "name": "aibo-cursor-agent",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "type": "module",
   "files": ["plugin.json", "README.md", "*.mjs"],

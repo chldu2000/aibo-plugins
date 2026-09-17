@@ -60,3 +60,33 @@
 - 单测覆盖模型隔离、原生名称/顺序、组合部分失败、拒绝与未确认、运行中拒绝、关闭后迟到响应。
 - 打包 worker 经 Runtime 2.1 验证模型、推理、上下文操作路由和 recovery 字段。
 - 目录参数只描述当前模型；切换模型后获取该模型参数。未对其他模型复制选项或从标签推算 tokens。
+
+## 2026-09-17 — Cursor 0.1.10 原生命令菜单
+
+环境：macOS arm64，Cursor CLI `2026.09.15-d2fe57e`，宿主源码 `b96a5d7`。
+
+- 修复前四项针对命令目录、创建/恢复通知、等待清理及附加指令的测试失败；修复后通过。
+- `node scripts/probe-cursor-commands.mjs` 实测读取 73 个命令，包含 copy-request-id
+  与临时工作区 `.cursor/commands/aibo-menu-probe.md`。计数包含当前环境命令，不作为固定目录。
+- 新会话发送 `/copy-request-id`，同时提供附加指令，返回原生 No request ID found 提示；
+  不调用模型，也不向剪贴板写入已有 request ID。临时工作区已清理。
+- 以宿主实际 loadSessionCommands / visibleSessionCommands / commandComposerInsertion 函数
+  连接插件通知及 command.list，验证菜单非空、argumentHint 保留且插入 `/review `。
+  这是函数级宿主兼容验收，不等同于桌面截图验收。
+- `pnpm run verify`：45 项测试通过；打包后的 Runtime 2.1 worker 完成 command.list
+  与原生命令回合发送，既有模型、推理、上下文 smoke 测试通过。
+- 目录在恢复时由新 ACP 通知重新构建；恢复通知顺序与旧进程隔离已通过模拟传输测试。
+  本轮没有另行执行真实持久会话恢复或带模型请求的自定义命令。
+
+### 同日桌面菜单回归：宿主隐藏第三方菜单
+
+用户安装 0.1.10 后仍看不到 `/`。只读核对最新会话确实绑定 0.1.10，协商了
+command.list；实际调用记录为 completed。新增隔离桌面 contract 探针并行请求模型与
+命令目录，宿主正常返回 72 个命令，排除了安装版本及目录路由问题。
+
+根因在宿主 Composer：TimelinePanel 为第三方插件传入 selectedAgent=null，而
+showSlashMenu 要求 selectedAgent 非空。此前函数级目录检查未覆盖这个组件显示条件。
+宿主修复为按 selectedSession 判断；回归探针位于宿主
+`probes/plugin-command-menu-browser.mjs`，使用实际 App → TimelinePanel → Composer，
+修复前超时看不到命令，修复后 shadcn/material3 均能显示、选择及关闭菜单。
+该修复需要更新宿主；Cursor 0.1.10 插件无需再次升版。

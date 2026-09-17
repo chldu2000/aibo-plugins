@@ -32,6 +32,11 @@ const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approval
 const opened=await invoke('open','aibo.session.open','dev.aibo.cursor.session.open',{mode:'create',executionProfile:profile,recovery:null});
 if(opened.output.nativeSessionId!=='fake-cursor-session')throw new Error('Cursor package did not open the fake ACP session');
 if (!opened.output.capabilities.includes('model.select')) throw new Error('Cursor package did not negotiate model selection');
+if (!opened.output.capabilities.includes('command.list')) throw new Error('Cursor package did not negotiate command directory');
+const commands = await invoke('commands', 'dev.aibo.cursor.command.list', 'dev.aibo.cursor.operation.command-list', {});
+if (!commands.output.commands.some(command => command.name === 'copy-request-id' && command.execution === 'prompt')) throw new Error('Native command missing from menu');
+await invoke('native-command', 'aibo.session.turn', 'dev.aibo.cursor.session.turn', { text: '/copy-request-id' }, 'command-turn');
+if (!events.some(event => event.type === 'message.completed' && event.payload.text === 'AIBO_NATIVE_COMMAND_OK')) throw new Error('Native command was not sent through the normal turn path');
 const catalog = await invoke('models', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'list' });
 if (catalog.output.current !== 'auto' || catalog.output.models.length !== 2) throw new Error('Model catalog missing Auto or premium choice');
 const selected = await invoke('select', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'premium' });

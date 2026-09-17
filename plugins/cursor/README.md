@@ -44,3 +44,17 @@ Settings are confirmed, saved in recovery and replayed after model selection on 
 A different explicit profile model discards previous-model parameter choices. Fast and
 other unrelated native parameters are left to Cursor. Run
 `node scripts/probe-cursor-parameters.mjs` for real selection/recovery checks.
+
+Version 0.1.10 adds `command.list` through `dev.aibo.cursor.command.list`.
+Cursor's `available_commands_update` supplies native command names, descriptions and
+argument hints for the `/` menu, including workspace commands. The first directory
+read waits up to 10 seconds for the asynchronous notification; no notification yields
+an empty directory. Later reads use the latest replacement snapshot. Commands are
+reloaded from Cursor on resume, never restored from a stale recovery snapshot.
+
+Slash input is sent unchanged through the usual turn/approval path. Additional
+instructions apply to ordinary messages only: prefixing a slash command would prevent
+Cursor from recognizing it. The menu contains only ACP-advertised commands; the full
+interactive CLI command palette and Aibo's built-in shortcuts are not synthesized.
+Run `node scripts/probe-cursor-commands.mjs` to check the real native/workspace directory
+and a local native utility command without sending a model request.

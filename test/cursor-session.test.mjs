@@ -461,3 +461,67 @@ test('partial reasoning failure exposes confirmed state without claiming the ful
   assert.equal(actual.recovery.data.reasoningEffort, actual.current);
   await session.close();
 });
+
+const commandUpdate = (sessionId, availableCommands) => ({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'available_commands_update', availableCommands } } });
+
+test('native command menu waits for the initial notification, then replaces idle updates', async () => {
+  const transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport, commandWaitMs: 50 });
+  await session.open(parameterOpen);
+  assert.ok(session.capabilities().includes('command.list'));
+  const pending = session.commands();
+  transport.emitNotification(commandUpdate(session.sessionId, [{ name: 'review', description: 'Review changes', input: { hint: '[scope]' } }]));
+  const result = await pending;
+  assert.deepEqual(result.commands, [{ name: 'review', description: 'Review changes', source: 'agent', category: 'agent', execution: 'prompt', argumentHint: '[scope]' }]);
+  transport.emitNotification(commandUpdate('foreign', [{ name: 'wrong' }]));
+  assert.deepEqual(await session.commands(), result);
+  transport.emitNotification(commandUpdate(session.sessionId, []));
+  assert.deepEqual(await session.commands(), { commands: [] });
+  await session.close();
+});
+
+test('commands arriving before open/load response survive without leaking old generation data', async () => {
+  let transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport, commandWaitMs: 5 });
+  const wrap = (transport, id) => {
+    const original = transport.request.bind(transport);
+    transport.request = async (method, params) => {
+      if (['session/new', 'session/load'].includes(method)) transport.emitNotification(commandUpdate(id, [{ name: 'native' }]));
+      return original(method, params);
+    };
+  };
+  wrap(transport, 'cursor-session-1');
+  await session.open(parameterOpen);
+  assert.equal((await session.commands()).commands[0].name, 'native');
+  const recovery = session.recovery(), old = transport;
+  await session.close(); transport = new FakeTransport(); wrap(transport, recovery.data.nativeSessionId);
+  await session.open({ ...parameterOpen, mode: 'resume', recovery });
+  old.emitNotification(commandUpdate(recovery.data.nativeSessionId, [{ name: 'stale' }]));
+  assert.equal((await session.commands()).commands[0].name, 'native');
+  await session.close();
+});
+
+test('missing command notifications time out; close releases pending reads and malformed entries are excluded', async () => {
+  const transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport, commandWaitMs: 5 });
+  await session.open(parameterOpen);
+  assert.deepEqual(await session.commands(), { commands: [] });
+  transport.emitNotification(commandUpdate(session.sessionId, [null, {}, { name: '/bad' }, { name: 'two words' }, { name: 'okay' }, { name: 'okay' }]));
+  assert.deepEqual((await session.commands()).commands.map(command => command.name), ['okay']);
+  await session.close();
+  const next = new CursorSession({ transportFactory: () => new FakeTransport(), commandWaitMs: 1000 });
+  await next.open(parameterOpen);
+  const pending = next.commands();
+  await next.close();
+  await assert.rejects(pending, /session changed/);
+});
+
+test('slash commands retain their leading slash and exact arguments despite additional instructions', async () => {
+  const transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open(parameterOpen);
+  const turn = session.prompt({ text: '/review staged', turnId: 'command', additionalInstructions: 'Be terse' });
+  assert.deepEqual(transport.requests.at(-1).params.prompt, [{ type: 'text', text: '/review staged' }]);
+  transport.finishPrompt({ stopReason: 'end_turn' }); await turn;
+  await session.close();
+});

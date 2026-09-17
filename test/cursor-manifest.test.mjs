@@ -72,3 +72,20 @@ test('Cursor parameter operations validate the host list/set contracts', async (
     assert.equal(input({ action: 'set', [key]: 'x', command: 'unexpected' }), false);
   }
 });
+
+test('Cursor command directory accepts the host empty input and validates menu entries', async () => {
+  const require = createRequire(path.join(aibo, 'package.json'));
+  const Ajv = require('ajv/dist/2020').default;
+  const ajv = new Ajv({ strict: false });
+  const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
+  const operation = manifest.contributions[0].operations.find(operation => operation.capability.id === 'dev.aibo.cursor.command.list');
+  assert.ok(CAPABILITIES.includes('command.list'));
+  assert.equal(operation.effect, 'read');
+  assert.deepEqual(operation.permissions, ['workspace.read']);
+  const input = ajv.compile(operation.inputSchema);
+  assert.equal(input({}), true);
+  assert.equal(input({ command: 'unexpected' }), false);
+  const output = ajv.compile(operation.outputSchema);
+  assert.equal(output({ commands: [{ name: 'review', description: null, source: 'agent', category: 'agent', execution: 'prompt', argumentHint: '[scope]' }] }), true);
+  assert.equal(output({ commands: [{ name: '' }] }), false);
+});

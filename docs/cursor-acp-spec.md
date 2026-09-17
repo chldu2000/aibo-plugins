@@ -213,3 +213,19 @@ recovery v1 新增可选 reasoningEffort/contextWindow，恢复顺序为模型�
 Cursor 的协商开关属于版本兼容依赖，依据本机 `2026.09.15-d2fe57e` ACP 实现与真实探针核对。
 公开背景：[Cursor ACP](https://prod.cursor.com/docs/cli/acp)、
 [Cursor 对参数化协商的说明](https://forum.cursor.com/t/cant-select-thinking-level-or-variant-in-cursor-acp/161317/5)。
+
+## 0.1.10 原生命令菜单
+
+插件声明 `command.list`，通过 `dev.aibo.cursor.command.list`（空对象输入，read /
+workspace.read）返回 `{ commands }`。命令来源为 ACP `available_commands_update`；
+映射 name、description、input.hint → argumentHint，标记 category/source 为 agent、
+execution 为 prompt，不填会被宿主过滤掉的 Cursor 专属 agent 分类。
+
+通知可能晚于 new/load 响应，也可能在同一输入帧中先被处理；插件暂存创建期间的通知，
+确认 nativeSessionId 后仅采纳对应会话。目录首次读取最多等待 10 秒；空数组是有效快照，
+后续通知完整替换目录。关闭清空快照并释放等待；旧进程、其他会话的通知不能污染目录。
+恢复依靠 Cursor 重新通知，不向 recovery 持久化命令定义。
+
+菜单选择后仍走 session.turn / session.prompt。以斜杠开头的输入原样传递，不前置附加指令；
+普通消息继续应用附加指令。执行沿用模式及审批约束，不另建绕过回合权限的 command.execute。
+只展示 ACP 宣告的原生命令，不硬编码交互式 CLI 全量命令或宿主 /settings、/new。

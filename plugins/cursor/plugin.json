@@ -1,7 +1,7 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
@@ -37,6 +37,68 @@
         ]
       },
       "operations": [
+        {
+          "id": "dev.aibo.cursor.operation.command-list",
+          "capability": {
+            "id": "dev.aibo.cursor.command.list",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "commands"
+            ],
+            "properties": {
+              "commands": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "description",
+                    "source",
+                    "category",
+                    "execution"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source": {
+                      "const": "agent"
+                    },
+                    "category": {
+                      "const": "agent"
+                    },
+                    "execution": {
+                      "const": "prompt"
+                    },
+                    "argumentHint": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 15000,
+          "idempotent": true
+        },
         {
           "id": "dev.aibo.cursor.operation.model-context-window",
           "capability": {
