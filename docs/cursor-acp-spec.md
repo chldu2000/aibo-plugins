@@ -53,7 +53,7 @@ contribution 必须是 session scope 的 capabilityProvider，并声明 `aibo.se
 
 后两项沿用宿主对应交互合同，输出 `{resolved:true,recovery,capabilities}`，且需验证宿主的 `approval.respond` / `user-input.respond` 能解析到本 provider 的 operation。不能只添加 capability 标签，或复制 Codex 的 `ext.dev.aibo.codex.*` 路由。
 
-首版报告的会话语义能力：`session.create`、`session.close`、`turn.send`、`turn.cancel`、`stream.text`、`approval.respond`、`user-input.respond`；`session.resume` 需 initialize 的 loadSession 支持并通过恢复验收。可安装版本必须通过恢复门槛。0.1.8 起，当 ACP 返回有效模型配置时额外报告 `model.select`；不宣告没有实现的 reasoning/service-tier/fork 等能力。
+首版报告的会话语义能力：`session.create`、`session.close`、`turn.send`、`turn.cancel`、`stream.text`、`approval.respond`、`user-input.respond`；`session.resume` 需 initialize 的 loadSession 支持并通过恢复验收。可安装版本必须通过恢复门槛。0.1.8 起，当 ACP 返回有效模型配置时额外报告 `model.select`；0.1.9 增加参数化 reasoning/context-window；不宣告没有实现的 service-tier/fork 等能力。
 
 ### 3.1 宿主持久队列
 
@@ -169,7 +169,7 @@ load 失败、sessionId 不存在、登录账号变化或状态不兼容时，�
 
 仅声明 settings v1 的 additionalInstructions：multiline、默认空字符串、maxLength 8000，scopes 为 application/workspace/session。在每次调用校验 context.settings 的 schema/version，读取有效值快照并前置到发送文本，不改宿主持久化的用户消息。正在执行及其 control 保持原快照。版本隔离、空字符串覆盖、继承和冲突语义沿用宿主。
 
-0.1.8 通过 ACP `configOptions` 读取真实模型目录与当前选择，通过 `session/set_config_option` 设置模型并校验确认结果；模型 reference 为不透明值，Auto 不固定为 `auto`。选择保存在 recovery 的可选 `modelId` 中，加载后重放，显式 execution profile model 优先。旧 recovery 无 modelId 时沿用 ACP 当前值。运行中拒绝模型操作，关闭后的迟到响应不能修改新会话状态。目录不代表订阅权限：保留付费模型并透传实际执行时的错误。reasoningEffort 仍明确拒绝；不根据 Cursor 名称推测 Fast。
+0.1.8 通过 ACP `configOptions` 读取真实模型目录与当前选择，通过 `session/set_config_option` 设置模型并校验确认结果；模型 reference 为不透明值，Auto 不固定为 `auto`。选择保存在 recovery 的可选 `modelId` 中，加载后重放，显式 execution profile model 优先。旧 recovery 无 modelId 时沿用 ACP 当前值。运行中拒绝模型操作，关闭后的迟到响应不能修改新会话状态。目录不代表订阅权限：保留付费模型并透传实际执行时的错误。0.1.9 支持下述推理与上下文参数；不根据 Cursor 名称推测 Fast。
 
 Cursor 可读取本机项目/用户 MCP 配置；支持范围与授权绕过风险须纳入执行策略探针。首版不把 Aibo Broker 自动暴露为 MCP，也不宣称现有 MCP 都受到 Aibo 工具级审计。若需要客户端 fs/terminal 或 Aibo 工具桥接，应另做版本：通过 `workspace.requested` / `aibo.session.tool.respond` 等宿主支持路径实施权限检查后，才宣告客户端能力。
 
@@ -193,3 +193,23 @@ Cursor 可读取本机项目/用户 MCP 配置；支持范围与授权绕过风�
 - `docs/message-queue.md`、`src-tauri/src/session_contract.rs`、`session_queue.rs`：标准生命周期派生队列、原生 steering 协商及 uncertain 边界。
 
 外部链接核对日期 2026-09-16。ACP 通用协议有某字段不代表当前 Cursor CLI 已实现。发布证据必须记录 CLI 精确版本、宿主提交、OS/架构、脱敏协商结果与真机结果；本规格没有运行登录、模型请求或修改用户工作区的探针。
+
+
+## 0.1.9 参数化模型补充
+
+初始化发送 `clientCapabilities._meta.parameterizedModelPicker: true`，让 Cursor 返回模型 ID
+与当前模型的独立参数。旧 CLI 返回变体目录时保留原有选择功能。优先识别 `thought_level`，
+缺少 category 时兼容 effort/reasoning/reasoning_effort/thought_level/thinking 原生 ID。
+多个推理维度组合显示，ID 包含模型与原生参数值，避免跨模型同名等级被当成等价。
+上下文只识别 `model_config` 的 context/context_window/context_size，不将 Fast 映射为上下文。
+目录只附带当前模型的参数；用户先切换模型，再选择其推理与上下文。
+
+新增 `dev.aibo.cursor.model.reasoning`（list/set，level）与
+`dev.aibo.cursor.model.context-window`（list/set，contextWindow），均为 idle-only 的 read 操作。
+设置逐项核验服务端确认；失败不虚构成功，组合部分成功时保留已确认的真实状态。
+recovery v1 新增可选 reasoningEffort/contextWindow，恢复顺序为模型、推理、上下文。
+窗口保留后端 ID、名称和显式 tokens，不把 1M 标签推断为精确 token 数。
+
+Cursor 的协商开关属于版本兼容依赖，依据本机 `2026.09.15-d2fe57e` ACP 实现与真实探针核对。
+公开背景：[Cursor ACP](https://prod.cursor.com/docs/cli/acp)、
+[Cursor 对参数化协商的说明](https://forum.cursor.com/t/cant-select-thinking-level-or-variant-in-cursor-acp/161317/5)。

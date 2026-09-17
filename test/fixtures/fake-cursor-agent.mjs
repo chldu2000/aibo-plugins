@@ -2,9 +2,14 @@
 import { createInterface } from 'node:readline';
 
 let model = 'auto', mode = 'agent';
+const parameters = { reasoning: 'medium', context: 'standard' };
 const config = () => ({ configOptions: [
   { id: 'mode', currentValue: mode, options: ['agent', 'plan', 'ask'].map(value => ({ value })) },
-  { id: 'model', category: 'model', type: 'select', currentValue: model, options: [{ value: 'auto', name: 'Auto' }, { value: 'premium', name: 'Premium' }] },
+  { id: 'model', description: 'Controls which model is used for responses', category: 'model', type: 'select', currentValue: model, options: [{ value: 'auto', name: 'Auto' }, { value: 'premium', name: 'Premium' }] },
+  ...(model === 'premium' ? [
+    { id: 'reasoning', category: 'thought_level', type: 'select', currentValue: parameters.reasoning, options: ['medium', 'high'].map(value => ({ value, name: value })) },
+    { id: 'context', category: 'model_config', type: 'select', currentValue: parameters.context, options: ['standard', 'long'].map(value => ({ value, name: value })) },
+  ] : []),
 ] });
 const send = message => process.stdout.write(`${JSON.stringify(message)}\n`);
 createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', line => {
@@ -15,7 +20,7 @@ createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', line =
   if (method === 'session/new') return send({jsonrpc:'2.0',id,result:{sessionId:'fake-cursor-session',...config()}});
   if (method === 'session/load') return send({jsonrpc:'2.0',id,result:config()});
   if (method === 'session/set_config_option') {
-    if (params.configId === 'model') model = params.value; else mode = params.value;
+    if (params.configId === 'model') model = params.value; else if (params.configId === 'mode') mode = params.value; else parameters[params.configId] = params.value;
     return send({jsonrpc:'2.0',id,result:config()});
   }
   if (method === 'session/prompt') {

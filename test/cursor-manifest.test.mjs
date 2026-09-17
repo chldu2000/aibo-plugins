@@ -54,3 +54,21 @@ test('Cursor model operation validates host inputs and the release manifest', as
   assert.equal(input({ action: 'set', reference: '' }), false);
   assert.equal(input({ action: 'subscribe' }), false);
 });
+
+test('Cursor parameter operations validate the host list/set contracts', async () => {
+  const require = createRequire(path.join(aibo, 'package.json'));
+  const Ajv = require('ajv/dist/2020').default;
+  const ajv = new Ajv({ strict: false });
+  const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
+  for (const [kind, key] of [['reasoning', 'level'], ['context-window', 'contextWindow']]) {
+    const operation = manifest.contributions[0].operations.find(operation => operation.capability.id === `dev.aibo.cursor.model.${kind}`);
+    assert.equal(operation.effect, 'read');
+    assert.deepEqual(operation.permissions, ['workspace.read']);
+    const input = ajv.compile(operation.inputSchema);
+    assert.equal(input({ action: 'list' }), true);
+    assert.equal(input({ action: 'set', [key]: 'opaque-native-value' }), true);
+    assert.equal(input({ action: 'set' }), false);
+    assert.equal(input({ action: 'set', [key]: '' }), false);
+    assert.equal(input({ action: 'set', [key]: 'x', command: 'unexpected' }), false);
+  }
+});

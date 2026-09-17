@@ -342,3 +342,122 @@ test('listed premium model can fail at prompt time and preserves the actual enti
   await assert.rejects(turn, /requires a paid subscription/);
   assert.equal(events.find(event => event.type === 'turn.failed').payload.message, 'This model requires a paid subscription');
 });
+
+class ParameterTransport extends FakeTransport {
+  constructor() { super(); this.model = 'auto'; this.values = { thinking: 'true', effort: 'medium', context: '200k', fast: 'false' }; }
+  configs() {
+    const select = (id, category, values) => ({ id, name: id, category, type: 'select', currentValue: this.values[id], options: values.map(value => ({ value, name: value.toUpperCase() })) });
+    return [{ id: 'mode', currentValue: 'ask', options: [{ value: 'ask' }] },
+      { id: 'model', type: 'select', category: 'model', description: 'Controls which model is used for responses', currentValue: this.model, options: ['auto', 'claude', 'gpt'].map(value => ({ value, name: value })) },
+      ...(this.model === 'auto' ? [] : [
+        ...(this.model === 'claude' ? [select('thinking', 'thought_level', ['false', 'true'])] : []),
+        select('effort', 'thought_level', ['low', 'medium', 'max']),
+        select('context', 'model_config', ['200k', '1m']), select('fast', 'model_config', ['false', 'true']),
+      ])];
+  }
+  async request(method, params) {
+    if (['session/new', 'session/load', 'session/set_config_option'].includes(method)) {
+      this.requests.push({ method, params });
+      if (method === 'session/set_config_option') {
+        if (this.reject) throw new Error('configuration denied');
+        if (!this.ignore) {
+          if (params.configId === 'model') this.model = params.value;
+          else this.values[params.configId] = params.value;
+        }
+      }
+      return { sessionId: 'cursor-session-1', configOptions: this.configs() };
+    }
+    return super.request(method, params);
+  }
+}
+const parameterOpen = { mode: 'create', workspaceId: 'w1', workspacePath: '/workspace', executionProfile: askProfile, permissions: ['workspace.read'] };
+
+test('parameterized negotiation, model-scoped reasoning combinations and independent context selection', async () => {
+  const transport = new ParameterTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  const opened = await session.open(parameterOpen);
+  assert.ok(opened.capabilities.includes('model.reasoning'));
+  assert.ok(opened.capabilities.includes('model.context-window'));
+  assert.equal(transport.requests[0].params.clientCapabilities._meta.parameterizedModelPicker, true);
+  assert.deepEqual((await session.configure('reasoning', { action: 'list' })).levels, []);
+  await session.models({ action: 'set', reference: 'claude' });
+  const catalog = await session.models({ action: 'list' });
+  assert.equal(catalog.models.find(model => model.id === 'claude').reasoningEfforts.length, 6);
+  assert.deepEqual(catalog.models.find(model => model.id === 'gpt').contextWindows, []);
+  assert.deepEqual(catalog.models.find(model => model.id === 'claude').contextWindows, [{ id: '200k', label: '200K' }, { id: '1m', label: '1M' }]);
+  const level = (await session.configure('reasoning', { action: 'list' })).levels.find(level => level.label === 'thinking: FALSE · effort: MAX');
+  assert.equal((await session.configure('reasoning', { action: 'set', level: level.id })).current, level.id);
+  await session.configure('context', { action: 'set', contextWindow: '1m' });
+  assert.equal((await session.models({ action: 'list' })).currentContextWindow, '1m');
+  assert.equal(transport.values.fast, 'false');
+  assert.equal(transport.values.effort, 'max');
+  const turn = session.prompt({ text: 'test', turnId: 'parameters' });
+  await assert.rejects(session.configure('context', { action: 'set', contextWindow: '200k' }), /idle session/);
+  transport.finishPrompt({ stopReason: 'end_turn' }); await turn;
+  await session.models({ action: 'set', reference: 'gpt' });
+  await assert.rejects(session.configure('reasoning', { action: 'set', level: level.id }), /current model catalog/);
+  await session.close();
+});
+
+test('parameter recovery replays native values and explicit model change discards old settings', async () => {
+  let transport = new ParameterTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open({ ...parameterOpen, executionProfile: { ...askProfile, model: 'claude' } });
+  const level = (await session.configure('reasoning', { action: 'list' })).levels.at(-1).id;
+  await session.configure('reasoning', { action: 'set', level });
+  await session.configure('context', { action: 'set', contextWindow: '1m' });
+  const recovery = session.recovery(); await session.close(); transport = new ParameterTransport();
+  await session.open({ ...parameterOpen, mode: 'resume', recovery });
+  assert.equal((await session.configure('reasoning', { action: 'list' })).current, level);
+  assert.equal((await session.models({ action: 'list' })).currentContextWindow, '1m');
+  await session.close(); transport = new ParameterTransport();
+  await session.open({ ...parameterOpen, mode: 'resume', recovery, executionProfile: { ...askProfile, model: 'gpt' } });
+  assert.equal(transport.values.effort, 'medium');
+  assert.equal(transport.values.context, '200k');
+  await session.close();
+});
+
+test('parameter validation, denied and unconfirmed changes retain truthful state', async () => {
+  const transport = new ParameterTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open({ ...parameterOpen, executionProfile: { ...askProfile, model: 'gpt' } });
+  await assert.rejects(session.configure('context', { action: 'set', contextWindow: 'fake' }), /current model catalog/);
+  transport.reject = true;
+  await assert.rejects(session.configure('context', { action: 'set', contextWindow: '1m' }), /denied/);
+  transport.reject = false; transport.ignore = true;
+  await assert.rejects(session.configure('context', { action: 'set', contextWindow: '1m' }), /did not confirm/);
+  assert.equal((await session.models({ action: 'list' })).currentContextWindow, '200k');
+  assert.equal(session.phase, 'ready');
+  await session.close();
+});
+
+test('late parameter response cannot revive a closed session', async () => {
+  const transport = new ParameterTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open({ ...parameterOpen, executionProfile: { ...askProfile, model: 'gpt' } });
+  let finish;
+  transport.request = () => new Promise(resolve => { finish = resolve; });
+  const setting = session.configure('context', { action: 'set', contextWindow: '1m' });
+  await session.close(); finish({ configOptions: transport.configs() });
+  await assert.rejects(setting, /session changed/);
+  assert.equal(session.phase, 'stopped');
+  assert.equal(session.modelConfig, null);
+});
+
+test('partial reasoning failure exposes confirmed state without claiming the full combination', async () => {
+  const transport = new ParameterTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open({ ...parameterOpen, executionProfile: { ...askProfile, model: 'claude' } });
+  const level = (await session.configure('reasoning', { action: 'list' })).levels.find(level => level.label === 'thinking: FALSE · effort: MAX').id;
+  const request = transport.request.bind(transport);
+  transport.request = (method, params) => {
+    if (params.configId === 'effort') throw new Error('effort denied');
+    return request(method, params);
+  };
+  await assert.rejects(session.configure('reasoning', { action: 'set', level }), /effort denied/);
+  const actual = await session.configure('reasoning', { action: 'list' });
+  assert.notEqual(actual.current, level);
+  assert.equal(actual.levels.find(level => level.id === actual.current).label, 'thinking: FALSE · effort: MEDIUM');
+  assert.equal(actual.recovery.data.reasoningEffort, actual.current);
+  await session.close();
+});

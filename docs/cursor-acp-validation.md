@@ -46,3 +46,17 @@
 - 回归测试覆盖缺少模型配置时不宣告能力、Auto/付费项共存、实际下一轮路由、切换拒绝与确认不一致、旧恢复数据兼容、宿主 profile 优先级、配置更新与外来会话隔离、关闭后的迟到响应，以及付费模型在 prompt 时失败保留原始错误。
 - 模型目录只表达后端选项，不承诺账户可调用；没有新增订阅套餐、锁定状态、推理强度或 Fast 能力。
 - 新功能只适用于新 release 的会话。原有会话仍固定绑定旧插件版本；安装后需选择新版本创建会话。
+
+## 2026-09-17 — Cursor 0.1.9 参数选择
+
+环境：macOS arm64，Cursor CLI `2026.09.15-d2fe57e`，宿主源码 `b96a5d7`。
+通过 `_meta.parameterizedModelPicker` 协商真实 `configOptions`，不读取账户私有缓存。
+
+- GPT-5.5：None / Low / Medium / High / Extra High；上下文 272K / 1M。
+- Claude Sonnet 4.6：Thinking Off/On 与 Effort Low/Medium/High/Max；上下文 200K / 1M。
+- 两个模型均完成推理、长上下文设置与返回值确认，关闭 ACP 进程后 load 并重放成功。
+- 恢复探针先发送 Auto 消息让 Cursor 保存会话；空会话直接 load 实测会返回 Session not found。
+- 真实验收未向付费模型发送推理任务，也未证明可用订阅或窗口容量极限；确认的是后端配置及恢复。
+- 单测覆盖模型隔离、原生名称/顺序、组合部分失败、拒绝与未确认、运行中拒绝、关闭后迟到响应。
+- 打包 worker 经 Runtime 2.1 验证模型、推理、上下文操作路由和 recovery 字段。
+- 目录参数只描述当前模型；切换模型后获取该模型参数。未对其他模型复制选项或从标签推算 tokens。

@@ -36,6 +36,12 @@ const catalog = await invoke('models', 'dev.aibo.cursor.model.select', 'dev.aibo
 if (catalog.output.current !== 'auto' || catalog.output.models.length !== 2) throw new Error('Model catalog missing Auto or premium choice');
 const selected = await invoke('select', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'premium' });
 if (selected.output.current !== 'premium' || selected.output.recovery.data.modelId !== 'premium') throw new Error('Model selection was not persisted');
+const levels = await invoke('reasoning-list', 'dev.aibo.cursor.model.reasoning', 'dev.aibo.cursor.operation.model-reasoning', { action: 'list' });
+const level = levels.output.levels.at(-1).id;
+const reasoning = await invoke('reasoning-set', 'dev.aibo.cursor.model.reasoning', 'dev.aibo.cursor.operation.model-reasoning', { action: 'set', level });
+if (reasoning.output.current !== level) throw new Error('Reasoning selection not confirmed');
+const window = await invoke('context-set', 'dev.aibo.cursor.model.context-window', 'dev.aibo.cursor.operation.model-context-window', { action: 'set', contextWindow: 'long' });
+if (window.output.current !== 'long' || window.output.recovery.data.contextWindow !== 'long') throw new Error('Context selection not persisted');
 const premium = await invoke('premium', 'aibo.session.turn', 'dev.aibo.cursor.session.turn', { text: 'hello' }, 'premium-turn');
 if (premium.output.status !== 'completed' || !events.some(event => event.payload?.delta === 'AIBO_CURSOR_PREMIUM_OK')) throw new Error('Selected model was not used for the next turn');
 await invoke('auto', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'auto' });

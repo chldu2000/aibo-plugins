@@ -1,4 +1,5 @@
 import { AcpTransport } from './acp-transport.mjs';
+import { modelParameters, selectValues } from './model-config.mjs';
 
 export const CAPABILITIES = [
   'session.create', 'session.resume', 'session.close', 'turn.send', 'turn.cancel',
@@ -40,7 +41,7 @@ export function validateExecutionProfile(profile, permissions) {
   const mode = MODE_BY_INTERACTION[p.interactionMode];
   if (!mode) throw pluginError('invalid_input', 'Cursor requires a supported interaction mode');
   if (p.model != null && (typeof p.model !== 'string' || !p.model.trim())) throw pluginError('invalid_input', 'Cursor model must be a non-empty reference');
-  if (p.reasoningEffort != null) throw pluginError('unsupported', 'Cursor reasoning selection is not enabled in this release');
+  if (p.reasoningEffort != null && (typeof p.reasoningEffort !== 'string' || !p.reasoningEffort)) throw pluginError('invalid_input', 'Cursor reasoning selection must be a non-empty ID');
   if (mode === 'agent') {
     if (!permissions.includes('workspace.write')) throw pluginError('permission_denied', 'Cursor edit mode requires workspace.write');
     if (p.filesystemPolicy !== 'workspace-write') throw pluginError('unsupported', 'Cursor edit mode currently supports workspace-write only');
@@ -75,6 +76,8 @@ export class CursorSession {
     this.subagents = new Map();
     this.phase = 'stopped';
     this.modelConfig = null;
+    this.configOptions = [];
+    this.parameterized = false;
   }
 
   async open({ mode, workspaceId, workspacePath, executionProfile, recovery, permissions }) {
@@ -98,7 +101,7 @@ export class CursorSession {
       this.phase = 'initializing';
       const initialized = await transport.request('initialize', {
         protocolVersion: 1,
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false, _meta: { parameterizedModelPicker: true } },
         clientInfo: { name: 'aibo-cursor', version: this.pluginVersion },
       });
       if (initialized?.protocolVersion !== 1) throw pluginError('incompatible_version', 'Cursor ACP protocol v1 is required');
@@ -121,6 +124,10 @@ export class CursorSession {
       await this.#selectMode(result, policy.mode);
       const requestedModel = policy.profile.model ?? restored?.modelId;
       if (requestedModel != null) await this.#setModel(requestedModel);
+      const sameModel = !policy.profile.model || policy.profile.model === restored?.modelId;
+      const level = policy.profile.reasoningEffort ?? (sameModel ? restored?.reasoningEffort : null);
+      if (level != null) await this.#setParameter('reasoning', level);
+      if (sameModel && restored?.contextWindow != null) await this.#setParameter('context', restored.contextWindow);
       this.phase = 'ready';
       this.#event('session.started', { mode: this.modeId });
       return this.snapshot();
@@ -227,7 +234,45 @@ export class CursorSession {
     return { resolved: true, recovery: this.recovery(), capabilities: this.capabilities() };
   }
 
-  capabilities() { return this.modelConfig ? [...CAPABILITIES, 'model.select'] : [...CAPABILITIES]; }
+  capabilities() { return this.modelConfig ? [...CAPABILITIES, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : [...CAPABILITIES]; }
+
+  parameters() { return modelParameters(this.configOptions ?? [], this.modelConfig?.current); }
+
+  async configure(kind, input) {
+    if (this.phase !== 'ready' || !this.sessionId) throw pluginError('busy', 'Cursor configuration requires an idle session');
+    if (!['reasoning', 'context'].includes(kind)) throw pluginError('invalid_input', 'Unknown Cursor configuration');
+    if (input.action === 'set') {
+      const transport = this.transport;
+      this.phase = 'configuring';
+      try { await this.#setParameter(kind, kind === 'reasoning' ? input.level : input.contextWindow); }
+      finally { if (this.transport === transport && this.phase === 'configuring') this.phase = 'ready'; }
+    } else if (input.action !== 'list') throw pluginError('invalid_input', 'Unknown Cursor configuration action');
+    const parameters = this.parameters();
+    return kind === 'reasoning'
+      ? { current: parameters.current, levels: parameters.levels.map(({ values, ...level }) => level), recovery: this.recovery() }
+      : { current: parameters.context?.currentValue ?? null, contextWindows: parameters.contextWindows, recovery: this.recovery() };
+  }
+
+  async #setParameter(kind, value) {
+    const parameters = this.parameters();
+    const values = kind === 'reasoning' ? parameters.levels.find(level => level.id === value)?.values
+      : parameters.contextWindows.some(option => option.id === value) ? [{ id: parameters.context.id, value }] : null;
+    if (!values) throw pluginError('invalid_input', 'Cursor parameter is not in the current model catalog');
+    const model = this.modelConfig.current;
+    for (const selection of values) {
+      if (this.modelConfig?.current !== model) throw pluginError('invalid_session', 'Cursor model changed during configuration');
+      const config = this.configOptions.find(config => config.id === selection.id);
+      if (!selectValues(config).some(option => option.value === selection.value)) throw pluginError('invalid_input', 'Cursor parameter options changed during configuration');
+      if (config.currentValue === selection.value) continue;
+      const transport = this.transport, sessionId = this.sessionId;
+      const result = await transport.request('session/set_config_option', { sessionId, configId: selection.id, value: selection.value });
+      if (this.transport !== transport || this.sessionId !== sessionId || transport.closed) throw pluginError('invalid_session', 'Cursor session changed during configuration');
+      this.#readModelConfig(result);
+      if (!Array.isArray(result?.configOptions) || this.modelConfig?.current !== model || this.configOptions.find(config => config.id === selection.id)?.currentValue !== selection.value) throw pluginError('invalid_output', 'Cursor did not confirm the requested parameter');
+    }
+    const confirmed = this.parameters();
+    if ((kind === 'reasoning' ? confirmed.current : confirmed.context?.currentValue) !== value) throw pluginError('invalid_output', 'Cursor did not confirm the requested parameter combination');
+  }
 
   async models(input) {
     if (this.phase !== 'ready' || !this.sessionId) throw pluginError('busy', 'Cursor model configuration requires an idle session');
@@ -238,16 +283,24 @@ export class CursorSession {
       try { await this.#setModel(input.reference); }
       finally { if (this.transport === transport && this.phase === 'configuring') this.phase = 'ready'; }
     } else if (input.action !== 'list') throw pluginError('invalid_input', 'Unknown Cursor model action');
-    return { current: this.modelConfig.current, models: this.modelConfig.models.map(model => ({ ...model })), recovery: this.recovery() };
+    const parameters = this.parameters();
+    return { current: this.modelConfig.current, currentContextWindow: parameters.context?.currentValue ?? null,
+      models: this.modelConfig.models.map(model => ({ ...model, reasoningEfforts: model.reference === this.modelConfig.current ? parameters.levels.map(({ values, ...level }) => level) : [], contextWindows: model.reference === this.modelConfig.current ? parameters.contextWindows : [] })), recovery: this.recovery() };
   }
 
   #readModelConfig(result) {
     if (!Array.isArray(result?.configOptions)) return;
+    this.configOptions = result.configOptions;
     const config = result.configOptions.find(option => option.category === 'model' || option.id === 'model');
     if (!config || config.type && config.type !== 'select' || typeof config.id !== 'string' || typeof config.currentValue !== 'string') {
       this.modelConfig = null;
+      this.configOptions = [];
+      this.parameterized = false;
       return;
     }
+    // Cursor has no explicit server acknowledgement for its picker extension.
+    // Its parameterized model descriptor also identifies support when Auto has no parameters.
+    this.parameterized ||= config.description === 'Controls which model is used for responses' || result.configOptions.some(option => ['thought_level', 'model_config'].includes(option.category));
     const options = (config.options ?? []).flatMap(option => Array.isArray(option.options) ? option.options : [option]);
     const models = options.filter(option => typeof option.value === 'string' && option.value.length).map(option => ({
       id: option.value, reference: option.value, displayName: option.name || option.value,
@@ -271,7 +324,7 @@ export class CursorSession {
 
   snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: this.capabilities() }; }
   recovery() {
-    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, ...(this.modelConfig ? { modelId: this.modelConfig.current } : {}) } };
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: this.parameters().current, contextWindow: this.parameters().context?.currentValue ?? null } : {}) } };
   }
 
   async close() {
@@ -288,6 +341,8 @@ export class CursorSession {
     this.phase = 'stopped';
     this.sessionId = null;
     this.modelConfig = null;
+    this.configOptions = [];
+    this.parameterized = false;
     if (transport) await transport.close();
     return { accepted: true };
   }
