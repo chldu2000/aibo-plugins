@@ -258,6 +258,7 @@ test('model catalog preserves Auto and premium choices; selection affects the ne
   assert.ok(opened.capabilities.includes('model.select'));
   const catalog = await session.models({ action: 'list' });
   assert.equal(catalog.current, 'auto');
+  await assert.rejects(session.models({action:'set'}), /not in the session catalog/);
   assert.deepEqual(catalog.models.map(model => model.displayName), ['Auto', 'Premium']);
   assert.equal((await session.models({ action: 'set', reference: 'premium' })).current, 'premium');
   assert.equal(session.recovery().data.modelId, 'premium');
@@ -421,6 +422,8 @@ test('parameter validation, denied and unconfirmed changes retain truthful state
   const transport = new ParameterTransport();
   const session = new CursorSession({ transportFactory: () => transport });
   await session.open({ ...parameterOpen, executionProfile: { ...askProfile, model: 'gpt' } });
+  await assert.rejects(session.configure('context', {action:'set'}), /current model catalog/);
+  await assert.rejects(session.configure('reasoning', {action:'set'}), /current model catalog/);
   await assert.rejects(session.configure('context', { action: 'set', contextWindow: 'fake' }), /current model catalog/);
   transport.reject = true;
   await assert.rejects(session.configure('context', { action: 'set', contextWindow: '1m' }), /denied/);

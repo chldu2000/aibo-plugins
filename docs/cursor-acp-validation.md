@@ -90,3 +90,15 @@ showSlashMenu 要求 selectedAgent 非空。此前函数级目录检查未覆盖
 `probes/plugin-command-menu-browser.mjs`，使用实际 App → TimelinePanel → Composer，
 修复前超时看不到命令，修复后 shadcn/material3 均能显示、选择及关闭菜单。
 该修复需要更新宿主；Cursor 0.1.10 插件无需再次升版。
+
+
+## 2026-09-18 — Cursor 0.1.11 通用能力协商
+
+宿主源码：`7865fad`。本次使用假 ACP 与离线 SDK 构建验证，没有调用真实 Cursor 模型服务。
+
+- 六个可选操作的版本、输入和输出 schema 与宿主 `session-features.v1.json` 逐字段一致，覆盖命令目录、模型选择、推理强度、上下文窗口、审批与用户输入。
+- 模型和命令响应携带 `recovery` 与当前 `capabilities`；命令提供 `/name ` 形式的 `insertionText`。
+- 打包后 Worker 的 Runtime 2.1 握手、开放能力声明、manifest 三者一致；冒烟测试还按 manifest 验证每次调用的真实输出，覆盖目录读取、模型及参数选择、恢复数据、原生命令和流式回合完成。
+- 缺失模型或参数的 set 请求仍由 provider 拒绝；测试确认错误请求不会阻断后续合法选择。
+- `pnpm run verify` 通过，生成可安装 Cursor 0.1.11 包。新版本需要重新安装并创建新会话；已有会话仍绑定原安装版本。
+- Cursor 未实现 Core 工具代理或得到宿主原生执行授权，宿主权限模式仍为 Ask/read-only。未声明树、分支时间线、快照、fork、压缩或目标能力。

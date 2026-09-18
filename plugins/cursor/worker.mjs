@@ -20,6 +20,19 @@ function contextOf(request) {
   return context;
 }
 
+// Feature replies share the host's recovery/capability envelope. Native catalogs
+// remain provider data; the host uses these contracts to negotiate availability.
+function featureReply(output) {
+  return { ...output, recovery: session.recovery(), capabilities: session.capabilities() };
+}
+
+async function commandDirectory() {
+  const output = await session.commands();
+  return featureReply({ ...output, commands: output.commands.map(command => ({
+    ...command, insertionText: `/${command.name} `,
+  })) });
+}
+
 async function invoke(request, tools) {
   if (owner) throw Object.assign(new Error('Cursor session invocation already running'), { kind: 'busy' });
   owner = { request, tools };
@@ -31,10 +44,10 @@ async function invoke(request, tools) {
     if (request.capability === 'aibo.session.open') {
       return await session.open({ mode: input.mode, workspaceId: context.workspaceId, workspacePath: context.workspacePath, executionProfile: input.executionProfile, recovery: input.recovery, permissions: context.permissions });
     }
-    if (request.capability === 'dev.aibo.cursor.command.list') return await session.commands();
-    if (request.capability === 'dev.aibo.cursor.model.reasoning') return await session.configure('reasoning', input);
-    if (request.capability === 'dev.aibo.cursor.model.context-window') return await session.configure('context', input);
-    if (request.capability === 'dev.aibo.cursor.model.select') return await session.models(input);
+    if (request.capability === 'dev.aibo.cursor.command.list') return await commandDirectory();
+    if (request.capability === 'dev.aibo.cursor.model.reasoning') return featureReply(await session.configure('reasoning', input));
+    if (request.capability === 'dev.aibo.cursor.model.context-window') return featureReply(await session.configure('context', input));
+    if (request.capability === 'dev.aibo.cursor.model.select') return featureReply(await session.models(input));
     if (request.capability === 'aibo.session.close') return await session.close();
     if (request.capability === 'aibo.session.turn' || request.capability === 'aibo.session.turn.write') {
       if (!context.turnId || typeof input.text !== 'string' || !input.text.trim()) throw Object.assign(new Error('Cursor turn requires text and turn identity'), { kind: 'invalid_input' });
@@ -54,7 +67,7 @@ async function invoke(request, tools) {
 async function control(request, { invocation }) {
   if (!owner || owner.request.invocationId !== invocation.invocationId) throw Object.assign(new Error('No matching Cursor invocation'), { kind: 'invalid_input' });
   const input = inputOf(request);
-  if (request.capability === 'dev.aibo.cursor.command.list') return await session.commands();
+  if (request.capability === 'dev.aibo.cursor.command.list') return await commandDirectory();
   if (request.capability.startsWith('dev.aibo.cursor.model.')) throw Object.assign(new Error('Cursor model configuration requires an idle session'), { kind: 'busy' });
   if (request.capability === 'aibo.session.cancel') return session.cancel();
   if (request.capability === 'dev.aibo.cursor.approval.respond') return session.respondApproval(input.requestId, input.decision);

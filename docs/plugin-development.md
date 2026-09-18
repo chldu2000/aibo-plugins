@@ -1,9 +1,10 @@
 # Aibo 插件开发文档
 
-最近核对：2026-09-17，Aibo 提交 `b96a5d7`（`feat: support model context window selection`）。新增宿主上下文下拉框及内置 Codex/Pi 接入；§3.10 / §4.5 说明协议、规格来源和呈现方式。此前目标、子 Agent 和持久队列规则仍保留，§3.9 / §4.4 的队列接入以 `dd2a458` 为准。本地提交不代表已发布版本；安装前核对目标宿主包含该提交。
+最近核对：2026-09-18，Aibo 提交 `7865fad`（通用能力分发）。§3.11 说明新的声明、协商和迁移规则；Cursor 0.1.11 已完成合同适配。此前上下文规格、目标、子 Agent 和持久队列规则仍保留。本地提交不代表已发布版本；安装前核对目标宿主包含该合同。
 
 | 提交 | 变化 | 开发者需要注意 |
 | --- | --- | --- |
+| `7865fad` | 按协商能力分发 Agent 功能 | 清单、实际握手、open 声明及精确 schema 一致；执行权限由宿主授权 |
 | `b96a5d7` | 模型上下文规格选择及 Codex/Pi 接入 | 新增 model.context-window、按模型的 contextWindows 与目录顶层 currentContextWindow；实际应用并确认后发布状态 |
 | `dd2a458` | 持久队列开放给标准会话插件 | 宿主派生 queue.manage；queue.steer 单独协商，未知投递不自动重发 |
 | `eaefa0c` | 内置 Codex/Pi 持久消息队列 | 稳定消息 ID、revision、暂停恢复及 uncertain 不自动重发 |
@@ -43,7 +44,7 @@ aibo-plugins/
 | 项目 | 骨架采用的合同 |
 | --- | --- |
 | 能力清单 | `aibo.plugin-manifest/v2` |
-| 能力运行协议 | Runtime 2.0 |
+| 能力运行协议 | 只读能力骨架 Runtime 2.0；Cursor 会话插件 Runtime 2.1 |
 | 语义视图 | 1.0 / `aibo.semantic-view/v1` |
 | 呈现包 | `aibo.presentation-package/v1` |
 | 呈现 hostApi / coreSemantics | 1.0.0 |
@@ -291,6 +292,32 @@ Codex 对已经加载的线程再次调用 `thread/resume.config`，可能成功
 
 本项目 Cursor 0.1.8 已提供模型目录和选择，但尚未接入此上下文能力；宿主更新不会自动启用它。后续应按 Cursor 实际返回的规格和设置操作适配，保留原生选项 ID，不复制 Codex/Pi 的窗口值或推断付费权限。
 
+### 3.11 通用能力声明与迁移
+
+宿主按功能能力分发，不再根据 Codex/Pi 身份决定第三方插件是否获得命令目录、模型选择、会话树、时间线、线程快照或分支功能。功能支持与运行中、忙碌、归档等动作准入状态分开处理。
+
+接入时同时满足以下条件：
+
+1. 会话使用 Manifest v2 与显式 Runtime 2.1。基础操作遵守宿主 `contracts/session-capabilities.v1.json`。
+2. 可选操作位于 session contribution，能力 ID 为 `<pluginId>.<feature>`，版本为 `1.0.0`，effect 为 read，permissions 恰为 `["workspace.read"]`。inputSchema/outputSchema 必须按 JSON 值精确匹配 `contracts/session-features.v1.json` 中的一个变体；不要自行增加 required 或 anyOf，业务参数完整性在处理器中检查。
+3. Runtime initialize 的 operations 返回清单的 `{ capability, version, operationId }`。capability 使用完整 ID，operationId 对应操作 id。`aibo.session.open` 返回 nativeSessionId、recovery 和不带插件前缀的能力名，例如 `model.select`。
+4. 操作结果返回共享合同要求的 recovery、capabilities 与其他必填字段；模型目录、命令目录也不能省略 envelope。只加标签、只改清单或只实现路由都不构成完整支持。
+
+模型选择有 reference 和 provider/modelId 两种合同变体，按实际原生接口选择。建议在构建时从固定宿主合同提取 schema，并在测试中比较清单与合同；发布包不得在运行时读取开发机宿主源码。详细生成示例与排查表见相邻宿主的 [会话能力声明与协商](../../aibo/docs/session-capability-negotiation.md)。该相对链接假设两个仓库并排检出；使用 AIBO_ROOT 时阅读对应宿主文件。
+
+功能语义也需明确：
+
+- `command.list` 的命令可返回 insertionText，例如 `/review `，缺省为 `/${name} `。agent 字段仅为兼容元数据，不按品牌筛选。宿主快捷命令同名优先，普通 slash 输入通过 turn 发送。
+- `session.tree` 提供导航；`session.timeline` 独立返回 branch 快照；`session.snapshot` 返回远端 thread 摘要，不是 recovery；`session.fork` 返回新原生会话绑定。不要用一个能力隐式表示其他能力。
+- 远端会话目录使用标准 workspace scope `aibo.session.catalog`，返回 threads，而不是增加品牌判断。
+- 呈现插件使用宿主提供的动作、canSyncSnapshot 和 execution profile 的 accessModes，不根据插件名称补造支持状态。
+
+功能声明不等于执行授权。可信执行后端授权绑定具体 installation/contribution，由宿主管理。没有可信原生授权时，只有完整实现标准 `aibo.session.tool.respond` 和 `aibo.session.turn.write`、实际接入宿主工具网关的提供者才能进入 CoreProxy 路径；不能靠空操作或 manifest 字段获得写权限。未协商执行后端只获得 read-only 配置，具体动作仍需满足权限、信任和审批要求。
+
+Cursor 0.1.11 对齐了 command.list、model.select、model.reasoning、model.context-window、approval.respond、user-input.respond 六项操作的精确 schema，补齐响应 envelope，并提供命令 insertionText。Cursor 的原生 ACP 工具执行尚未接入宿主 CoreProxy，宿主仍只提供 Ask/read-only；原生 Plan/Edit 不等于宿主已授权对应模式。
+
+迁移后增加插件版本、重新构建并安装，再用新会话验证。旧会话固定旧 release，不会自动换绑。排查功能缺失时依次检查 open 声明、manifest schema、握手三元组、原生实现和会话状态。当前 Cursor 测试及打包 Worker 冒烟会检查上述合同与模拟 ACP 响应；真实 Cursor CLI、桌面安装、权限隔离和完整交互仍需单独验收。
+
 ## 4. 开发呈现插件
 
 `plugins/presentation/presentation.source.json` 是源清单，构建生成正式 `presentation.json`。不要手写摘要。
@@ -412,11 +439,14 @@ Fast 和设置协议的扩展实现还需验证：
 
 宿主新增相关用例在 `test/session-goal.test.mjs`、`test/subagent-workflow.test.mjs`、`test/message-queue.test.mjs`、`test/presentation-timeline.test.mjs` 和 `test/presentation-conversation.test.mjs`。原生链路运行 `cargo test --manifest-path src-tauri/Cargo.toml --lib`；子 Agent 双皮肤探针为 `node probes/subagent-browser.mjs`。本项目构建不替代这些验证。
 
-本项目 verify 执行现有测试、呈现控件输出/默认继承检查、TypeScript 编译、能力归档完整性以及呈现清单和资源校验；构建还使用模拟 Cursor 引擎对打包后的 Cursor 插件进行协议冒烟检查。不启动桌面应用，也不证明协议握手、实际安装或完整交互通过。直接启动能力 worker 会等待 stdin 握手，不能当作冒烟测试。
+本项目 verify 执行现有测试、呈现控件输出/默认继承检查、TypeScript 编译、能力归档完整性以及呈现清单和资源校验；构建还使用模拟 Cursor 引擎对打包后的 Cursor 插件进行协议冒烟检查。该冒烟覆盖打包 Worker 的 Runtime 握手、会话能力声明及操作响应合同，使用模拟 ACP 引擎；不启动桌面应用，也不证明真实 Cursor CLI、实际安装或完整交互通过。直接启动能力 worker 会等待 stdin 握手，不能当作冒烟测试。
 
 修改宿主时还需在 Aibo 仓库执行 `pnpm run verify`；涉及原生能力或会话时，根据宿主文档运行对应 Rust 测试与原生探针。
 
 ## 6. 权威参考
+
+- `contracts/session-features.v1.json`、`src-tauri/src/session_contract.rs`：可选会话功能的精确合同与协商。
+- `src-tauri/src/execution_profile.rs`：宿主执行后端授权与 accessModes。
 
 以下路径均相对于相邻的 `../aibo` 仓库；自定义 AIBO_ROOT 时在相应仓库查阅：
 

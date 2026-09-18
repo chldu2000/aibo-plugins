@@ -2,10 +2,20 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+import assert from 'node:assert/strict';
+import {isDeepStrictEqual} from 'node:util';
 
 const packagePath = process.argv[2];
 const fakeBin = process.argv[3];
 if (!packagePath || !fakeBin) throw new Error('Usage: smoke-cursor.mjs <package> <fake-bin>');
+
+const aibo = path.resolve(process.env.AIBO_ROOT ?? fileURLToPath(new URL('../../aibo', import.meta.url)));
+const require = createRequire(path.join(aibo, 'package.json'));
+const Ajv = require('ajv/dist/2020').default;
+const ajv = new Ajv({strict:false});
+const features = JSON.parse(await readFile(path.join(aibo,'contracts/session-features.v1.json'),'utf8'));
 
 const child = spawn(process.execPath,[path.join(packagePath,'worker.mjs')],{
   cwd:packagePath,env:{...process.env,PATH:`${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`},stdio:['pipe','pipe','inherit'],
@@ -27,18 +37,32 @@ const identity={protocol:'2.1',instanceId:'smoke-instance',generationId:'smoke-g
 const initialized=await send('capability.initialize',identity);
 if(initialized.protocol!=='2.1')throw new Error('Cursor package did not negotiate Runtime 2.1');
 const context={turnId:null,workspaceId:'smoke-workspace',workspacePath:packagePath,originalCaller:{kind:'window',id:'smoke-window'},permissions:['workspace.read'],callChain:[]};
-const invoke=(invocationId,capability,operationId,input,turnId=null)=>send('capability.invoke',{invocationId,instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,capability,contractVersion:'1.0.0',operationId,scope:{kind:'session',id:'smoke-session'},deadlineUnixMs:Date.now()+30_000,context:{...context,turnId},input});
+const invoke=async(invocationId,capability,operationId,input,turnId=null)=>{
+  const result=await send('capability.invoke',{invocationId,instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,capability,contractVersion:'1.0.0',operationId,scope:{kind:'session',id:'smoke-session'},deadlineUnixMs:Date.now()+30_000,context:{...context,turnId},input});
+  const operation=manifest.contributions[0].operations.find(op=>op.capability.id===capability);
+  assert.ok(operation, capability);
+  const validate=ajv.compile(operation.outputSchema);
+  assert.ok(validate(result.output), `${capability}: ${JSON.stringify(validate.errors)}`);
+  return result;
+};
 const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'disabled',model:null,reasoningEffort:null};
 const opened=await invoke('open','aibo.session.open','dev.aibo.cursor.session.open',{mode:'create',executionProfile:profile,recovery:null});
 if(opened.output.nativeSessionId!=='fake-cursor-session')throw new Error('Cursor package did not open the fake ACP session');
 if (!opened.output.capabilities.includes('model.select')) throw new Error('Cursor package did not negotiate model selection');
 if (!opened.output.capabilities.includes('command.list')) throw new Error('Cursor package did not negotiate command directory');
+for (const name of ['model.select','model.reasoning','model.context-window','command.list','approval.respond','user-input.respond']) {
+  assert.ok(opened.output.capabilities.includes(name), name);
+  const operation=manifest.contributions[0].operations.find(op=>op.capability.id===`${manifest.pluginId}.${name}`);
+  assert.ok(features.capabilities[name].some(shape=>isDeepStrictEqual(shape.inputSchema,operation.inputSchema)&&isDeepStrictEqual(shape.outputSchema,operation.outputSchema)),name);
+  assert.ok(initialized.operations.some(op=>op.capability===operation.capability.id&&op.version===operation.capability.version&&op.operationId===operation.id),name);
+}
 const commands = await invoke('commands', 'dev.aibo.cursor.command.list', 'dev.aibo.cursor.operation.command-list', {});
-if (!commands.output.commands.some(command => command.name === 'copy-request-id' && command.execution === 'prompt')) throw new Error('Native command missing from menu');
+if (!commands.output.commands.some(command => command.name === 'copy-request-id' && command.execution === 'prompt' && command.insertionText === '/copy-request-id ')) throw new Error('Native command missing from menu');
 await invoke('native-command', 'aibo.session.turn', 'dev.aibo.cursor.session.turn', { text: '/copy-request-id' }, 'command-turn');
 if (!events.some(event => event.type === 'message.completed' && event.payload.text === 'AIBO_NATIVE_COMMAND_OK')) throw new Error('Native command was not sent through the normal turn path');
 const catalog = await invoke('models', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'list' });
 if (catalog.output.current !== 'auto' || catalog.output.models.length !== 2) throw new Error('Model catalog missing Auto or premium choice');
+await assert.rejects(invoke('invalid-select', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', {action:'set'}));
 const selected = await invoke('select', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'premium' });
 if (selected.output.current !== 'premium' || selected.output.recovery.data.modelId !== 'premium') throw new Error('Model selection was not persisted');
 const levels = await invoke('reasoning-list', 'dev.aibo.cursor.model.reasoning', 'dev.aibo.cursor.operation.model-reasoning', { action: 'list' });

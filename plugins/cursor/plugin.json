@@ -1,7 +1,7 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
@@ -45,52 +45,33 @@
           },
           "inputSchema": {
             "type": "object",
-            "additionalProperties": false
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "get"
+              }
+            }
           },
           "outputSchema": {
             "type": "object",
-            "required": [
-              "commands"
-            ],
             "properties": {
-              "commands": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "required": [
-                    "name",
-                    "description",
-                    "source",
-                    "category",
-                    "execution"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "description": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "source": {
-                      "const": "agent"
-                    },
-                    "category": {
-                      "const": "agent"
-                    },
-                    "execution": {
-                      "const": "prompt"
-                    },
-                    "argumentHint": {
-                      "type": "string"
-                    }
-                  }
+                  "type": "string"
                 }
               }
-            }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
           },
           "effect": "read",
           "permissions": [
@@ -122,51 +103,28 @@
                 "type": "string",
                 "minLength": 1
               }
-            },
-            "anyOf": [
-              {
-                "properties": {
-                  "action": {
-                    "const": "list"
-                  }
-                }
-              },
-              {
-                "properties": {
-                  "action": {
-                    "const": "set"
-                  }
-                },
-                "required": [
-                  "contextWindow"
-                ]
-              }
-            ]
+            }
           },
           "outputSchema": {
             "type": "object",
-            "required": [
-              "current",
-              "contextWindows",
-              "recovery"
-            ],
             "properties": {
-              "current": {
+              "recovery": {
                 "type": [
-                  "string",
+                  "object",
                   "null"
                 ]
               },
-              "contextWindows": {
+              "capabilities": {
                 "type": "array",
                 "items": {
-                  "type": "object"
+                  "type": "string"
                 }
-              },
-              "recovery": {
-                "type": "object"
               }
-            }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
           },
           "effect": "read",
           "permissions": [
@@ -198,51 +156,28 @@
                 "type": "string",
                 "minLength": 1
               }
-            },
-            "anyOf": [
-              {
-                "properties": {
-                  "action": {
-                    "const": "list"
-                  }
-                }
-              },
-              {
-                "properties": {
-                  "action": {
-                    "const": "set"
-                  }
-                },
-                "required": [
-                  "level"
-                ]
-              }
-            ]
+            }
           },
           "outputSchema": {
             "type": "object",
-            "required": [
-              "current",
-              "levels",
-              "recovery"
-            ],
             "properties": {
-              "current": {
+              "recovery": {
                 "type": [
-                  "string",
+                  "object",
                   "null"
                 ]
               },
-              "levels": {
+              "capabilities": {
                 "type": "array",
                 "items": {
-                  "type": "object"
+                  "type": "string"
                 }
-              },
-              "recovery": {
-                "type": "object"
               }
-            }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
           },
           "effect": "read",
           "permissions": [
@@ -274,70 +209,28 @@
                 "type": "string",
                 "minLength": 1
               }
-            },
-            "anyOf": [
-              {
-                "properties": {
-                  "action": {
-                    "const": "list"
-                  }
-                }
-              },
-              {
-                "properties": {
-                  "action": {
-                    "const": "set"
-                  }
-                },
-                "required": [
-                  "reference"
-                ]
-              }
-            ]
+            }
           },
           "outputSchema": {
             "type": "object",
-            "required": [
-              "models",
-              "current",
-              "recovery"
-            ],
             "properties": {
-              "models": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "required": [
-                    "id",
-                    "reference",
-                    "displayName"
-                  ],
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "reference": {
-                      "type": "string"
-                    },
-                    "displayName": {
-                      "type": "string"
-                    },
-                    "description": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  }
+                  "type": "string"
                 }
-              },
-              "current": {
-                "type": "string"
-              },
-              "recovery": {
-                "type": "object"
               }
-            }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
           },
           "effect": "read",
           "permissions": [

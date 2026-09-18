@@ -13,7 +13,7 @@ Supported execution profiles:
 - Ask and Plan: read-only filesystem, commands and network disabled, no approval reviewer.
 - Edit: workspace-write filesystem, approved commands, network disabled, user/on-request approval.
 
-The current Aibo host classifies third-party providers as an unnegotiated enforcement backend and therefore dispatches only its restricted Ask profile to this plugin. Edit support is implemented at the plugin boundary but requires host enforcement negotiation before it is available in the Aibo UI.
+Aibo selects enforcement from host-authorized installation grants or an implemented Core tool gateway, not the plugin name. Cursor uses ACP native tool execution and does not implement `aibo.session.tool.respond`; it therefore remains unnegotiated and receives only the restricted Ask profile. Edit and Plan support at the plugin boundary does not grant host execution authority or enable those modes in the Aibo UI.
 
 This release intentionally rejects full-access, automatic review and attachments. It does not import Cursor Desktop conversations or expose Aibo tools as MCP tools.
 
@@ -54,7 +54,22 @@ reloaded from Cursor on resume, never restored from a stale recovery snapshot.
 
 Slash input is sent unchanged through the usual turn/approval path. Additional
 instructions apply to ordinary messages only: prefixing a slash command would prevent
-Cursor from recognizing it. The menu contains only ACP-advertised commands; the full
-interactive CLI command palette and Aibo's built-in shortcuts are not synthesized.
+Cursor from recognizing it. The plugin directory contains only ACP-advertised commands, not the full interactive
+CLI palette. Aibo merges its own capability-gated shortcuts into the menu; host shortcuts
+take precedence on name collisions.
 Run `node scripts/probe-cursor-commands.mjs` to check the real native/workspace directory
 and a local native utility command without sending a model request.
+
+
+Version 0.1.11 targets Aibo `7865fad` or newer. All six optional operations pin the
+host's `session-features.v1.json` input/output contracts. Command, model, reasoning
+and context-window replies include `recovery` and the current `capabilities` alongside
+their native data; initialization advertises the same versioned operations. Host
+availability is the intersection of these declarations, the manifest and runtime
+handshake. Invalid or missing model/parameter selections are still rejected by the
+provider before calling ACP, even though the shared envelope allows omitted set fields.
+
+Native commands supply `insertionText: "/name "`; no host brand-specific prefix logic
+is required. Session tree, branch timeline, forks, compaction and goal lifecycle remain
+undeclared because this adapter does not implement those contracts. `session.snapshot`
+is not a synonym for this plugin's opaque recovery data.

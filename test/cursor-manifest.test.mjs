@@ -50,7 +50,8 @@ test('Cursor model operation validates host inputs and the release manifest', as
   const input = ajv.compile(operation.inputSchema);
   assert.equal(input({ action: 'list' }), true);
   assert.equal(input({ action: 'set', reference: 'default[]' }), true);
-  assert.equal(input({ action: 'set' }), false);
+  // The shared schema validates the envelope; the provider validates set values.
+  assert.equal(input({ action: 'set' }), true);
   assert.equal(input({ action: 'set', reference: '' }), false);
   assert.equal(input({ action: 'subscribe' }), false);
 });
@@ -67,13 +68,14 @@ test('Cursor parameter operations validate the host list/set contracts', async (
     const input = ajv.compile(operation.inputSchema);
     assert.equal(input({ action: 'list' }), true);
     assert.equal(input({ action: 'set', [key]: 'opaque-native-value' }), true);
-    assert.equal(input({ action: 'set' }), false);
+    // The shared schema validates the envelope; the provider validates set values.
+    assert.equal(input({ action: 'set' }), true);
     assert.equal(input({ action: 'set', [key]: '' }), false);
     assert.equal(input({ action: 'set', [key]: 'x', command: 'unexpected' }), false);
   }
 });
 
-test('Cursor command directory accepts the host empty input and validates menu entries', async () => {
+test('Cursor command directory accepts host inputs and requires the negotiated reply envelope', async () => {
   const require = createRequire(path.join(aibo, 'package.json'));
   const Ajv = require('ajv/dist/2020').default;
   const ajv = new Ajv({ strict: false });
@@ -85,7 +87,37 @@ test('Cursor command directory accepts the host empty input and validates menu e
   const input = ajv.compile(operation.inputSchema);
   assert.equal(input({}), true);
   assert.equal(input({ command: 'unexpected' }), false);
+  assert.equal(input({ action: 'get' }), true);
   const output = ajv.compile(operation.outputSchema);
-  assert.equal(output({ commands: [{ name: 'review', description: null, source: 'agent', category: 'agent', execution: 'prompt', argumentHint: '[scope]' }] }), true);
-  assert.equal(output({ commands: [{ name: '' }] }), false);
+  const reply = { commands: [{ name: 'review', description: null, source: 'agent', category: 'agent', execution: 'prompt', insertionText: '/review ' }], recovery: null, capabilities: ['command.list'] };
+  assert.equal(output(reply), true);
+  assert.equal(output({commands: reply.commands}), false, 'feature replies require negotiated capability and recovery fields');
+  assert.equal(output({...reply,capabilities: 'command.list'}), false);
+});
+
+
+test('every Cursor feature pins a supported host schema and never claims an unimplemented execution backend', async () => {
+  const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
+  const contracts = await json(path.join(aibo, 'contracts/session-features.v1.json'));
+  const operations = manifest.contributions[0].operations;
+  const prefix = manifest.pluginId + '.';
+  const features = operations.filter(op => op.capability.id.startsWith(prefix));
+  assert.deepEqual(features.map(op => op.capability.id.slice(prefix.length)).sort(), [
+    'approval.respond','command.list','model.context-window','model.reasoning','model.select','user-input.respond',
+  ]);
+  for (const op of features) {
+    const name = op.capability.id.slice(prefix.length);
+    assert.equal(op.capability.version, contracts.version);
+    assert.equal(op.effect, 'read');
+    assert.deepEqual(op.permissions, ['workspace.read']);
+    assert.ok(contracts.capabilities[name].some(contract => {
+      try {assert.deepEqual(op.inputSchema,contract.inputSchema);assert.deepEqual(op.outputSchema,contract.outputSchema);return true;}
+      catch {return false;}
+    }), `${name} must match a host-negotiable contract`);
+  }
+  assert.equal(operations.some(op=>op.capability.id==='aibo.session.tool.respond'),false, 'Cursor ACP does not implement the Core tool gateway');
+  for(const name of ['session.tree','session.timeline','session.snapshot','session.fork','compaction.run']) {
+    assert.equal(CAPABILITIES.includes(name),false);
+    assert.equal(operations.some(op=>op.capability.id===prefix+name),false);
+  }
 });
