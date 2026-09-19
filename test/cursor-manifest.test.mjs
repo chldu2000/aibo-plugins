@@ -10,6 +10,20 @@ const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 
+test('Cursor publishes native Agent Ask Plan modes with explicit provider-owned permissions', async () => {
+  const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
+  const provider = manifest.contributions[0];
+  assert.equal(provider.executionPolicy, 'agent-managed');
+  assert.deepEqual(provider.sessionControls.map(control => control.label), ['Agent', 'Ask', 'Plan']);
+  assert.deepEqual(provider.sessionControls.map(control => control.profile.interactionMode), ['edit', 'ask', 'plan']);
+  const { validateExecutionProfile } = await import('../plugins/cursor/cursor-session.mjs');
+  for (const control of provider.sessionControls) {
+    assert.equal(control.kind, 'mode');
+    assert.equal(control.profile.networkPolicy, 'agent-managed');
+    assert.equal(validateExecutionProfile({schema:'aibo.execution-profile/v1',...control.profile}, ['workspace.read','workspace.write']).mode, control.id);
+  }
+});
+
 test('Cursor manifest qualifies for the host queue without claiming native steering', async () => {
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
   const packageManifest = await json(path.join(project, 'plugins/cursor/package.json'));

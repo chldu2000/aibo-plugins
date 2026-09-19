@@ -45,7 +45,7 @@ const invoke=async(invocationId,capability,operationId,input,turnId=null)=>{
   assert.ok(validate(result.output), `${capability}: ${JSON.stringify(validate.errors)}`);
   return result;
 };
-const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'disabled',model:null,reasoningEffort:null};
+const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'agent-managed',model:null,reasoningEffort:null};
 const opened=await invoke('open','aibo.session.open','dev.aibo.cursor.session.open',{mode:'create',executionProfile:profile,recovery:null});
 if(opened.output.nativeSessionId!=='fake-cursor-session')throw new Error('Cursor package did not open the fake ACP session');
 if (!opened.output.capabilities.includes('model.select')) throw new Error('Cursor package did not negotiate model selection');
@@ -76,6 +76,23 @@ if (premium.output.status !== 'completed' || !events.some(event => event.payload
 await invoke('auto', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'auto' });
 const turn=await invoke('turn','aibo.session.turn','dev.aibo.cursor.session.turn',{text:'hello'},'smoke-turn');
 if(turn.output.status!=='completed'||!events.some(event=>event.type==='message.delta'&&event.payload.delta==='AIBO_CURSOR_OK')||!events.some(event=>event.type==='turn.completed'))throw new Error('Cursor package did not stream and complete the fake turn');
+let recovery = turn.output.recovery;
+for (const control of manifest.contributions[0].sessionControls) {
+  await invoke(`close-${control.id}`, 'aibo.session.close', 'dev.aibo.cursor.session.close', {});
+  const opened = await invoke(`open-${control.id}`, 'aibo.session.open', 'dev.aibo.cursor.session.open', {mode:'resume',executionProfile:{...profile,...control.profile},recovery});
+  assert.equal(opened.output.recovery.data.modeId, control.id);
+  const write = control.id === 'agent';
+  const capability = write ? 'aibo.session.turn.write' : 'aibo.session.turn';
+  const operation = manifest.contributions[0].operations.find(op => op.capability.id === capability);
+  if (write) {
+    await assert.rejects(invoke('unauthorized-native-write', capability, operation.id, {text:'hello'}, 'unauthorized-turn'), /workspace.write/);
+    context.permissions.push('workspace.write');
+  }
+  const result = await invoke(`turn-${control.id}`, capability, operation.id, {text:'hello'}, `mode-turn-${control.id}`);
+  assert.equal(result.output.status, 'completed');
+  recovery = result.output.recovery;
+  context.permissions = ['workspace.read'];
+}
 child.stdin.end();
 await new Promise((resolve,reject)=>{child.once('exit',code=>code===0?resolve():reject(new Error(`Cursor worker exited ${code}`)));setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Cursor worker did not exit'));},3_000).unref();});
 console.log('Cursor packaged worker smoke test passed');

@@ -9,14 +9,41 @@ Prerequisites:
 - Node.js 22 or newer.
 - For version 0.1.12+, an Aibo build supporting host SDK 0.1.x (`hostSdk`). The plugin no longer bundles Aibo SDK packages.
 
-Supported execution profiles:
+Version 0.1.15 requires an Aibo host supporting `executionPolicy: "agent-managed"`
+and the provider-managed session controls contract (migration 0047). Older hosts
+reject the new declaration rather than silently treating it as sandboxed execution.
 
-- Ask and Plan: read-only filesystem, commands and network disabled, no approval reviewer.
-- Edit: workspace-write filesystem, approved commands, network disabled, user/on-request approval.
+The session mode menu exposes **Agent**, **Ask**, and **Plan** through plugin-owned
+`sessionControls`. Agent maps to `edit`; Ask and Plan map to `ask` and `plan`.
+The host persists the choice and resumes the conversation with that mode,
+retaining model and reasoning selections. Cursor does not persist empty sessions:
+a binding explicitly marked `hasPrompt: false` is recreated on resume. Once a
+prompt has been sent (or for older bindings without that marker), resume must load
+the original native session; failures never silently create a fresh conversation. Every mode change must be confirmed by
+Cursor ACP. Debug is absent because the validated CLI ACP interface does not offer it.
 
-Aibo selects enforcement from host-authorized installation grants or an implemented Core tool gateway, not the plugin name. Cursor uses ACP native tool execution and does not implement `aibo.session.tool.respond`; it therefore remains unnegotiated and receives only the restricted Ask profile. Edit and Plan support at the plugin boundary does not grant host execution authority or enable those modes in the Aibo UI.
+Permission ownership:
 
-This release intentionally rejects full-access, automatic review and attachments. It does not import Cursor Desktop conversations or expose Aibo tools as MCP tools.
+- Agent: Cursor manages filesystem, command, network and MCP permissions. Aibo
+  admits the top-level write turn in a trusted workspace and forwards native tool
+  approval requests to the user, returning `allow_once` or `reject_once`.
+- Ask and Plan: Cursor's native modes provide read-only behavior; the plugin
+  rejects tool permission requests. This is a native behavior contract, not an OS sandbox.
+- Aibo does not inject Cursor allow/deny rules, intercept every native tool call,
+  or claim workspace-only writes or blocked network access. Cursor's own user and
+  project permission configuration remains effective; already-allowed operations
+  may not generate an Aibo approval prompt.
+- `agentManagedPermissions` identifies this ownership in host metadata;
+  `nativeSandbox` is false. Native permission declarations grant no Core tool access.
+
+Opening a session selects a mode using `workspace.read`. Executing an Agent turn
+requires the separate `aibo.session.turn.write` operation and `workspace.write`;
+opening Agent mode alone is not write authorization. Aibo automatic review and
+host-enforced execution profiles are rejected. Attachments and importing Cursor
+Desktop conversations remain unsupported.
+
+Run `node scripts/probe-cursor-desktop.mjs --contract-only` to verify the installed
+host menu and Plan → Agent → Ask native session recovery without a model prompt.
 
 With Aibo `dd2a458` or newer, the host derives `queue.manage` from this plugin's standard Runtime 2.1 open/turn/cancel/close contracts. Waiting messages, stable IDs, FIFO delivery, pause/resume and uncertain-delivery handling remain host-owned. This release does not advertise native `queue.steer`: messages submitted during a running Cursor turn wait for that turn to settle, while send-now remains available when the session is idle.
 

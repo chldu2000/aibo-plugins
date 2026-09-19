@@ -5,7 +5,7 @@ import path from 'node:path';
 import { CursorSession } from '../plugins/cursor/cursor-session.mjs';
 
 const workspacePath = await mkdtemp(path.join(tmpdir(), 'aibo-cursor-models-'));
-const profile = { schema: 'aibo.execution-profile/v1', interactionMode: 'ask', approvalPolicy: 'never', approvalReviewer: 'none', filesystemPolicy: 'read-only', commandPolicy: 'disabled', networkPolicy: 'disabled', model: null, reasoningEffort: null };
+const profile = { schema: 'aibo.execution-profile/v1', interactionMode: 'ask', approvalPolicy: 'never', approvalReviewer: 'none', filesystemPolicy: 'read-only', commandPolicy: 'disabled', networkPolicy: 'agent-managed', model: null, reasoningEffort: null };
 const open = { workspaceId: 'model-probe', workspacePath, executionProfile: profile, permissions: ['workspace.read'] };
 const events = [];
 let session = new CursorSession({ emit: event => events.push(event) }), original;

@@ -100,7 +100,7 @@ stdout 只能承载协议消息，日志写 stderr。长任务应响应 `tools.s
 文案和标准 executionProfile 补丁，宿主按执行授权过滤后展示。不要依赖宿主根据插件
 名称生成权限菜单。没有声明时不展示菜单；声明不授予原生执行权限。选择只提交选项 ID，
 宿主从固定安装版本重新读取声明。详见相邻 Aibo 的 `docs/session-controls.md`。
-当前 Cursor 使用受限执行配置，尚未声明可切换的会话控制选项。
+Cursor 0.1.15 声明 Agent / Ask / Plan 模式及 `executionPolicy: "agent-managed"`；需要支持 migration 0047 的宿主。Cursor 管理原生权限，aibo 转发审批且不提供进程沙箱。详见 Cursor 插件 README。
 
 ### 3.1 会话 Agent 的发现与图标
 

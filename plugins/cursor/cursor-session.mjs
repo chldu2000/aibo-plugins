@@ -40,17 +40,19 @@ export function validateExecutionProfile(profile, permissions) {
   if (p.schema !== 'aibo.execution-profile/v1') throw pluginError('invalid_input', 'Cursor requires execution profile v1');
   const mode = MODE_BY_INTERACTION[p.interactionMode];
   if (!mode) throw pluginError('invalid_input', 'Cursor requires a supported interaction mode');
+  if (!permissions.includes('workspace.read')) throw pluginError('permission_denied', 'Cursor requires workspace.read');
   if (p.model != null && (typeof p.model !== 'string' || !p.model.trim())) throw pluginError('invalid_input', 'Cursor model must be a non-empty reference');
   if (p.reasoningEffort != null && (typeof p.reasoningEffort !== 'string' || !p.reasoningEffort)) throw pluginError('invalid_input', 'Cursor reasoning selection must be a non-empty ID');
   if (mode === 'agent') {
-    if (!permissions.includes('workspace.write')) throw pluginError('permission_denied', 'Cursor edit mode requires workspace.write');
-    if (p.filesystemPolicy !== 'workspace-write') throw pluginError('unsupported', 'Cursor edit mode currently supports workspace-write only');
+    // Opening/restoring selects a native mode but does not authorize a write
+    // turn. The worker checks workspace.write on aibo.session.turn.write.
+    if (p.filesystemPolicy !== 'agent-managed') throw pluginError('unsupported', 'Cursor Agent requires provider-managed filesystem permissions');
     if (p.approvalReviewer !== 'user' || p.approvalPolicy !== 'on-request') throw pluginError('unsupported', 'Cursor edit mode currently requires user/on-request approval');
-    if (p.commandPolicy !== 'approved') throw pluginError('unsupported', 'Cursor edit mode currently requires approved commands');
+    if (p.commandPolicy !== 'agent-managed') throw pluginError('unsupported', 'Cursor Agent requires provider-managed command permissions');
   } else if (p.filesystemPolicy !== 'read-only' || p.commandPolicy !== 'disabled' || p.approvalPolicy !== 'never' || p.approvalReviewer !== 'none') {
     throw pluginError('unsupported', 'Cursor ask and plan modes require read-only files, disabled commands, and no approvals');
   }
-  if (p.networkPolicy !== 'disabled') throw pluginError('unsupported', 'Cursor network access is not enabled in this release');
+  if (p.networkPolicy !== 'agent-managed') throw pluginError('unsupported', 'Cursor requires provider-managed network permissions');
   return { mode, profile: p };
 }
 
@@ -97,6 +99,11 @@ export class CursorSession {
     this.workspacePath = workspacePath;
     this.profile = policy.profile;
     this.modeId = policy.mode;
+    // Cursor does not persist a newly-created session until it receives a
+    // prompt. An explicitly empty binding can be recreated after a mode change;
+    // older or prompted bindings must still load, never silently lose history.
+    this.hasPrompt = restored ? restored.hasPrompt !== false : false;
+    const loadNative = restored && this.hasPrompt;
     const transport = this.transportFactory({ cwd: workspacePath }).start();
     this.transport = transport;
     this.removeRequest = transport.onRequest(message => this.transport === transport && this.#handleRequest(message));
@@ -113,9 +120,9 @@ export class CursorSession {
       this.agentCapabilities = object(initialized.agentCapabilities);
       this.phase = 'authenticating';
       await transport.request('authenticate', { methodId: 'cursor_login' });
-      this.phase = restored ? 'loading' : 'opening';
+      this.phase = loadNative ? 'loading' : 'opening';
       let result;
-      if (restored) {
+      if (loadNative) {
         if (this.agentCapabilities.loadSession !== true) throw pluginError('unsupported', 'This Cursor CLI cannot restore ACP sessions');
         result = await transport.request('session/load', { sessionId: restored.nativeSessionId, cwd: workspacePath, mcpServers: [] }, 90_000);
         this.sessionId = restored.nativeSessionId;
@@ -159,6 +166,7 @@ export class CursorSession {
     // Cursor parses leading slash commands before processing ordinary prompt text.
     // Prefixing settings would turn a native command into a model request.
     const promptText = !/^\s*\/\S+/.test(text) && additionalInstructions.trim() ? `${additionalInstructions.trim()}\n\n${text}` : text;
+    this.hasPrompt = true;
     try {
       const result = await this.transport.request('session/prompt', {
         sessionId: this.sessionId,
@@ -366,7 +374,7 @@ export class CursorSession {
 
   snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: this.capabilities() }; }
   recovery() {
-    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: this.parameters().current, contextWindow: this.parameters().context?.currentValue ?? null } : {}) } };
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, hasPrompt: this.hasPrompt, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: this.parameters().current, contextWindow: this.parameters().context?.currentValue ?? null } : {}) } };
   }
 
   async close() {
@@ -403,7 +411,7 @@ export class CursorSession {
       const changed = await this.transport.request('session/set_config_option', { sessionId: this.sessionId, configId: 'mode', value: expected });
       this.#readModelConfig(changed);
       const updated = changed?.configOptions?.find(option => option.id === 'mode')?.currentValue;
-      if (updated !== undefined && updated !== expected) throw pluginError('invalid_output', 'Cursor did not apply the requested mode');
+      if (updated !== expected) throw pluginError('invalid_output', 'Cursor did not confirm the requested mode');
     }
   }
 
@@ -412,6 +420,7 @@ export class CursorSession {
     const data = object(recovery.data);
     if (recovery.schema !== RECOVERY_SCHEMA || recovery.version !== 1 || typeof data.nativeSessionId !== 'string' || !data.nativeSessionId) throw pluginError('invalid_input', 'Invalid Cursor recovery data');
     if (data.workspaceId !== workspaceId || data.workspacePath !== workspacePath) throw pluginError('permission_denied', 'Cursor recovery belongs to another workspace');
+    if (data.hasPrompt !== undefined && typeof data.hasPrompt !== 'boolean') throw pluginError('invalid_input', 'Invalid Cursor prompt recovery state');
     return data;
   }
 
@@ -428,10 +437,7 @@ export class CursorSession {
     const requestId = `cursor-${typeof message.id === 'number' ? 'n' : 's'}-${String(message.id)}`;
     if (message.method === 'session/request_permission') {
       const options = Array.isArray(params.options) ? params.options : [];
-      const toolId = params.toolCall?.toolCallId;
-      const knownTool = this.tools.get(toolId) ?? params.toolCall ?? {};
-      const networkLike = knownTool.kind === 'fetch' || /\b(mcp|https?|network|fetch|curl|wget)\b/i.test(`${knownTool.title ?? ''}\n${bounded(knownTool.rawInput, 4_000)}`);
-      if (this.modeId !== 'agent' || this.profile.approvalReviewer !== 'user' || networkLike) {
+      if (this.modeId !== 'agent' || this.profile.approvalReviewer !== 'user') {
         const rejected = options.find(candidate => candidate.kind === 'reject_once');
         this.transport.respond(message.id, rejected ? { outcome: { outcome: 'selected', optionId: rejected.optionId } } : { outcome: { outcome: 'cancelled' } });
         return true;

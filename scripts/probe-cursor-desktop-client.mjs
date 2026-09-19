@@ -1,4 +1,9 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke as tauriInvoke } from '@tauri-apps/api/core';
+
+async function invoke(command, args) {
+  try { return await tauriInvoke(command, args); }
+  catch (error) { throw new Error(`${command}: ${typeof error === 'string' ? error : JSON.stringify(error)}`); }
+}
 
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(find,label,attempts=600){for(let n=0;n<attempts;n++){const value=await find();if(value)return value;await delay(100);}throw Error(`timeout: ${label}`);}
@@ -45,10 +50,21 @@ async function run(){try {
   const selected = await invoke('invoke_agent_capability', { sessionId: session.id, capability: 'model.select', input: { action: 'set', reference: catalog.current.reference } });
   if (selected.current !== catalog.current.reference) throw Error('Host model selection did not round-trip');
   if(config.contractOnly){
+    const modes = [];
+    for (const controlId of ['plan', 'agent', 'ask']) {
+      const profile = await invoke('get_session_execution_profile', {sessionId:session.id});
+      if (!profile.agentManagedPermissions || profile.nativeSandbox) throw Error('Native permission ownership not exposed');
+      if (profile.sessionControls.map(control=>control.id).join(',') !== 'agent,ask,plan') throw Error('Cursor mode menu missing');
+      const changed = await invoke('update_session_execution_profile', {sessionId:session.id,controlId});
+      if (changed.enforced.interactionMode !== (controlId === 'agent' ? 'edit' : controlId)) throw Error('Mode selection did not persist');
+      // This reopens the pinned native session and checks ACP mode selection.
+      await invoke('get_session_models', {sessionId:session.id});
+      modes.push(controlId);
+    }
     await invoke('close_agent_session',{sessionId:session.id});
     await invoke('set_agent_plugin_enabled',{id:installation.id,enabled:false});
     await invoke('uninstall_agent_plugin',{id:installation.id});
-    await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,mode:'contract-only',commandCount:commandResult.commands.length,modelCount:catalog.models.length,auto:auto.reference,pluginVersion:listed.version,sessionId:session.id,capabilities:session.capabilities})});
+    await fetch('/__cursor_probe_report',{method:'POST',body:JSON.stringify({ok:true,mode:'contract-only',modes,commandCount:commandResult.commands.length,modelCount:catalog.models.length,auto:auto.reference,pluginVersion:listed.version,sessionId:session.id,capabilities:session.capabilities})});
     return;
   }
   const completed=await prompt(session.id,workspace.id,'Reply with exactly: AIBO_CURSOR_DESKTOP_OK');

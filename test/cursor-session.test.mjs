@@ -28,19 +28,63 @@ class FakeTransport {
 
 const askProfile = {
   schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',
-  filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'disabled',model:null,reasoningEffort:null,
+  filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'agent-managed',model:null,reasoningEffort:null,
 };
 const editProfile = {
   ...askProfile,interactionMode:'edit',approvalPolicy:'on-request',approvalReviewer:'user',
-  filesystemPolicy:'workspace-write',commandPolicy:'approved',
+  filesystemPolicy:'agent-managed',commandPolicy:'agent-managed',
 };
+
+test('native mode selection survives resume and requires explicit ACP confirmation', async () => {
+  let recovery;
+  for (const interactionMode of ['ask', 'plan', 'edit', 'ask']) {
+    const transport = new FakeTransport();
+    const session = new CursorSession({ transportFactory: () => transport });
+    const profile = interactionMode === 'edit' ? editProfile : { ...askProfile, interactionMode };
+    await session.open({ mode: recovery ? 'resume' : 'create', workspaceId: 'modes', workspacePath: '/workspace', executionProfile: profile, recovery, permissions: ['workspace.read', 'workspace.write'] });
+    const expected = interactionMode === 'edit' ? 'agent' : interactionMode;
+    assert.equal(session.recovery().data.modeId, expected);
+    if (expected !== 'ask') assert.ok(transport.requests.some(r => r.method === 'session/set_config_option' && r.params.value === expected));
+    recovery = session.recovery();
+    await session.close();
+  }
+  const transport = new FakeTransport();
+  const original = transport.request.bind(transport);
+  transport.request = (method, params) => method === 'session/set_config_option' ? {} : original(method, params);
+  const session = new CursorSession({ transportFactory: () => transport });
+  await assert.rejects(session.open({mode:'create',workspaceId:'w',workspacePath:'/workspace',executionProfile:editProfile,permissions:['workspace.read','workspace.write']}), /did not confirm/);
+  assert.throws(() => validateExecutionProfile({ ...editProfile, filesystemPolicy: 'workspace-write' }, ['workspace.read','workspace.write']), /provider-managed filesystem/);
+});
+
+test('empty native sessions can change modes before a first prompt without discarding prompted history', async () => {
+  let transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  const open = {mode:'create',workspaceId:'empty',workspacePath:'/workspace',executionProfile:askProfile,permissions:['workspace.read']};
+  await session.open(open);
+  const empty = session.recovery();
+  assert.equal(empty.data.hasPrompt, false);
+  await session.close(); transport = new FakeTransport();
+  await session.open({...open,mode:'resume',recovery:empty,executionProfile:{...askProfile,interactionMode:'plan'}});
+  assert.ok(transport.requests.some(r=>r.method==='session/new'));
+  assert.ok(!transport.requests.some(r=>r.method==='session/load'));
+  const prompt = session.prompt({text:'hello',turnId:'seed'});
+  transport.finishPrompt({stopReason:'end_turn'}); await prompt;
+  const saved = session.recovery();
+  assert.equal(saved.data.hasPrompt, true);
+  await session.close(); transport = new FakeTransport();
+  const original = transport.request.bind(transport);
+  transport.request = (method,params) => method === 'session/load' ? Promise.reject(new Error('Session not found')) : original(method,params);
+  await assert.rejects(session.open({...open,mode:'resume',recovery:saved}), /Session not found/);
+  assert.ok(!transport.requests.some(r=>r.method==='session/new'));
+});
 
 test('执行配置只开放已实现的安全组合', () => {
   assert.equal(validateExecutionProfile(askProfile,['workspace.read']).mode,'ask');
   assert.equal(validateExecutionProfile(editProfile,['workspace.read','workspace.write']).mode,'agent');
-  assert.throws(() => validateExecutionProfile(editProfile,['workspace.read']), /workspace.write/);
+  assert.equal(validateExecutionProfile(editProfile,['workspace.read']).mode,'agent');
+  assert.throws(() => validateExecutionProfile(editProfile,[]), /workspace.read/);
   assert.throws(() => validateExecutionProfile({...editProfile,approvalReviewer:'auto-review'},['workspace.read','workspace.write']), /user\/on-request/);
-  assert.throws(() => validateExecutionProfile({...askProfile,networkPolicy:'agent-managed'},['workspace.read']), /network/);
+  assert.throws(() => validateExecutionProfile({...askProfile,networkPolicy:'disabled'},['workspace.read']), /network/);
   assert.throws(() => validateExecutionProfile({...askProfile,approvalPolicy:'on-request'},['workspace.read']), /no approvals/);
 });
 
@@ -70,6 +114,8 @@ test('创建会话、切换模式、流式输出和权限响应形成闭环', as
   session.respondApproval(approval.payload.requestId,'accept');
   assert.deepEqual(transport.responses.at(-1),{id:7,result:{outcome:{outcome:'selected',optionId:'yes-once'}}});
   transport.emitRequest({jsonrpc:'2.0',id:'network',method:'session/request_permission',params:{sessionId:'cursor-session-1',toolCall:{toolCallId:'t3',title:'Shell',kind:'execute',rawInput:{command:'curl https://example.com'}},options:[{optionId:'yes',kind:'allow_once'},{optionId:'no',kind:'reject_once'}]}});
+  const networkApproval = events.filter(event=>event.type==='approval.requested').at(-1);
+  session.respondApproval(networkApproval.payload.requestId,'cancel');
   assert.deepEqual(transport.responses.at(-1),{id:'network',result:{outcome:{outcome:'selected',optionId:'no'}}});
   transport.emitRequest({jsonrpc:'2.0',id:'foreign',method:'session/request_permission',params:{sessionId:'another-session',options:[]}});
   assert.deepEqual(transport.responses.at(-1),{id:'foreign',result:{outcome:{outcome:'cancelled'}}});

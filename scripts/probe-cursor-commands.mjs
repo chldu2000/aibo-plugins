@@ -15,7 +15,7 @@ try {
   await mkdir(path.join(workspacePath, '.cursor', 'skills', 'aibo-skill-probe'), { recursive: true });
   await writeFile(path.join(workspacePath, '.cursor', 'skills', 'aibo-skill-probe', 'SKILL.md'), '---\nname: aibo-skill-probe\ndescription: Inspect workspace files for the command menu probe.\n---\nList workspace files.\n');
   const opened = await session.open({ mode: 'create', workspaceId: 'command-probe', workspacePath, permissions: ['workspace.read'], executionProfile: {
-    schema: 'aibo.execution-profile/v1', interactionMode: 'ask', approvalPolicy: 'never', approvalReviewer: 'none', filesystemPolicy: 'read-only', commandPolicy: 'disabled', networkPolicy: 'disabled', model: null, reasoningEffort: null,
+    schema: 'aibo.execution-profile/v1', interactionMode: 'ask', approvalPolicy: 'never', approvalReviewer: 'none', filesystemPolicy: 'read-only', commandPolicy: 'disabled', networkPolicy: 'agent-managed', model: null, reasoningEffort: null,
   } });
   assert.ok(opened.capabilities.includes('command.list'));
   const { commands } = await session.commands();
