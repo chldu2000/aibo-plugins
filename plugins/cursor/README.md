@@ -61,6 +61,13 @@ take precedence on name collisions.
 Run `node scripts/probe-cursor-commands.mjs` to check the real native/workspace directory
 and a local native utility command without sending a model request.
 
+Version 0.1.14 adds the official Cursor 2D cube as the session provider icon.
+The path comes from `General Logos/Cube/SVG/CUBE_2D_DARK.svg` in the
+[Cursor brand assets](https://cursor.com/brand), uniformly scaled to 22 units high
+and centered in the host's 24 × 24 viewBox. The host supplies the theme color.
+Cursor and its logo belong to Anysphere, Inc.; the mark identifies this plugin's
+Cursor integration and is not covered by this repository's code license.
+
 Version 0.1.13 classifies ACP descriptions ending in `(builtin skill)`,
 `(project skill)`, or `(user skill)` as Skills in the command menu. These are the
 origin markers emitted by Cursor CLI 2026.09.18-9a7762b; ACP currently supplies no
