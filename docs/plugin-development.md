@@ -94,6 +94,14 @@ stdout 只能承载协议消息，日志写 stderr。长任务应响应 `tools.s
 
 会话 Agent 应使用 Runtime 2.1 及宿主的会话能力/事件/恢复合同，本骨架不是会话 Agent 实现。参考 Aibo 的 `src-tauri/capability-plugins/`，不要将其中宿主内部 helper 当作公开 SDK。
 
+### 权限与会话模式声明
+
+会话贡献可声明 `sessionControls`，由插件定义选项的 ID、`permission`/`mode` 类别、
+文案和标准 executionProfile 补丁，宿主按执行授权过滤后展示。不要依赖宿主根据插件
+名称生成权限菜单。没有声明时不展示菜单；声明不授予原生执行权限。选择只提交选项 ID，
+宿主从固定安装版本重新读取声明。详见相邻 Aibo 的 `docs/session-controls.md`。
+当前 Cursor 使用受限执行配置，尚未声明可切换的会话控制选项。
+
 ### 3.1 会话 Agent 的发现与图标
 
 新建会话轮盘根据已安装的能力提供者生成入口。被发现的 contribution 必须是 `kind: "capabilityProvider"`、`scope: "session"`，并在 operations 中声明 `capability.id: "aibo.session.open"`。安装必须已启用、可运行、无 activationIssues，且该 contribution 的包依赖可用。
