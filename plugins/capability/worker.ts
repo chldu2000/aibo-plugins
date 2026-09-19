@@ -2,7 +2,7 @@ import { serveCapability } from '@aibo/capability-runtime/stdio';
 import type { Snapshot } from '@aibo/plugin-protocol';
 
 serveCapability({
-  pluginId:'dev.aibo.starter.greeting',pluginVersion:'1.0.0',contributionId:'dev.aibo.starter.greeting.provider',
+  pluginId:'dev.aibo.starter.greeting',pluginVersion:'1.0.1',contributionId:'dev.aibo.starter.greeting.provider',
   operations:[{capability:'dev.aibo.starter.greeting.read',version:'1.0.0',operationId:'dev.aibo.starter.greeting.read'}],
   async invoke(request) {
     const output: Pick<Snapshot,'state'|'view'|'actions'> = {

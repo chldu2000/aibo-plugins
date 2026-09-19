@@ -7,6 +7,7 @@ Prerequisites:
 - Cursor CLI `2026.09.15-d2fe57e` (model catalog validated), or a compatible release.
 - Run `agent login` before starting Aibo.
 - Node.js 22 or newer.
+- For version 0.1.12+, an Aibo build supporting host SDK 0.1.x (`hostSdk`). The plugin no longer bundles Aibo SDK packages.
 
 Supported execution profiles:
 

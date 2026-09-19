@@ -1,11 +1,14 @@
 {
   "name": "aibo-cursor-agent",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "type": "module",
-  "files": ["plugin.json", "README.md", "*.mjs"],
-  "bundledDependencies": ["@aibo/capability-runtime", "@aibo/plugin-protocol"],
-  "dependencies": {
+  "files": [
+    "plugin.json",
+    "README.md",
+    "*.mjs"
+  ],
+  "devDependencies": {
     "@aibo/capability-runtime": "0.1.0",
     "@aibo/plugin-protocol": "0.1.0"
   }

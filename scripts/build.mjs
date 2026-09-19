@@ -23,11 +23,12 @@ export async function buildExternalPlugin() {
   async function buildCapabilityPackage(name,{compile=false,entry}) {
     const source=path.join(project,'plugins',name),consumer=path.join(root,`${name}-consumer`);
     await cp(source,consumer,{recursive:true});
-    execFileSync('npm',['install','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar],{cwd:consumer,stdio:'pipe'});
+    execFileSync('npm',['install','--save-dev','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar],{cwd:consumer,stdio:'pipe'});
     await copyFile(path.join(source,'package.json'),path.join(consumer,'package.json'));
     if(compile) execFileSync(process.execPath,[tsc,'-p','tsconfig.json'],{cwd:consumer,stdio:'pipe'});
     const archive=pack(consumer);
-    if(!archive.files.some(file=>file.path===entry) || !archive.files.some(file=>file.path==='node_modules/@aibo/capability-runtime/stdio.mjs')) throw Error(`${name} archive is missing its worker or SDK`);
+    if(!archive.files.some(file=>file.path===entry)) throw Error(`${name} archive is missing its worker`);
+    if(archive.files.some(file=>file.path.startsWith('node_modules/@aibo/'))) throw Error('Host SDK must not be bundled');
     if(archive.files.some(file=>/svelte|\.css$|\.tsx?$/.test(file.path.replace(/\.d\.ts$/,'.types')))) throw Error(`${name} archive contains frontend or uncompiled source`);
     const packagePath=path.join(root,name);await mkdir(packagePath);
     execFileSync('tar',['-xzf',path.join(consumer,archive.filename),'-C',packagePath,'--strip-components=1']);
@@ -39,7 +40,7 @@ export async function buildExternalPlugin() {
   const fakeAgent=path.join(fakeBin,'agent');
   await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);
   execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin],{cwd:project,stdio:'inherit'});
-  const evidence={externalDirectory:true,offlineSdkTarballs:true,compiledWithoutDom:true,bundledRuntime:true,packages:{capability:capability.files,cursor:cursor.files}};
+  const evidence={externalDirectory:true,offlineSdkTarballs:true,compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability.files,cursor:cursor.files}};
   await writeFile(path.join(root,'build-evidence.json'),JSON.stringify(evidence,null,2));
   const presentationTools = path.join(root, 'presentation-tools');
   await cp(hostPath('packages/presentation-tools'), presentationTools, {recursive:true});

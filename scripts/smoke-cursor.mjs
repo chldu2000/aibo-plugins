@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {isDeepStrictEqual} from 'node:util';
 
@@ -17,7 +17,7 @@ const Ajv = require('ajv/dist/2020').default;
 const ajv = new Ajv({strict:false});
 const features = JSON.parse(await readFile(path.join(aibo,'contracts/session-features.v1.json'),'utf8'));
 
-const child = spawn(process.execPath,[path.join(packagePath,'worker.mjs')],{
+const child = spawn(process.execPath,['--import',pathToFileURL(path.join(aibo,'packages/plugin-host/register.mjs')).href,path.join(packagePath,'worker.mjs')],{
   cwd:packagePath,env:{...process.env,PATH:`${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`},stdio:['pipe','pipe','inherit'],
 });
 let nextId=0;

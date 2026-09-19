@@ -60,16 +60,25 @@ pnpm run verify
 AIBO_ROOT=/absolute/path/to/aibo pnpm run build
 ```
 
-构建脚本编译 plugin-protocol，将 capability-runtime 与 protocol 打为 tarball，离线安装到能力插件的构建副本，再编译 worker。发布归档捆绑运行依赖，清单不会包含开发机 tarball 路径。呈现工具同样先打包、解包，再生成资源长度和 SHA-256。
+构建脚本编译 plugin-protocol，将 capability-runtime 与 protocol 打为 tarball，离线安装到能力插件的构建副本，再编译 worker。SDK 只作为开发依赖，发布归档不携带 Aibo SDK；运行时通过 `hostSdk` 使用宿主公开 SDK。插件自己的第三方运行依赖仍需携带，清单不会包含开发机 tarball 路径。呈现工具同样先打包、解包，再生成资源长度和 SHA-256。
 
 输出位于每次新建的 `dist/build-*`：
 
-- `capability/`：能力示例安装目录，包含 `plugin.json`、`dist/worker.js` 和运行依赖。
-- `cursor/`：Cursor ACP 会话插件安装目录，包含 Worker 及运行依赖；实现范围和安装要求见 `plugins/cursor/README.md`、`docs/cursor-acp-spec.md`。
+- `capability/`：能力示例安装目录，包含 `plugin.json` 和 `dist/worker.js`，无 Aibo SDK 副本。
+- `cursor/`：Cursor ACP 会话插件安装目录，包含 Worker，不携带 Aibo SDK；实现范围和安装要求见 `plugins/cursor/README.md`、`docs/cursor-acp-spec.md`。
 - `presentation/`：呈现安装目录，包含 `presentation.json` 和清单声明的资源。
 - 其他目录及归档：SDK、构建副本和构建证据，供调试检查。
 
 重复构建不会覆盖旧目录，但相同 ID/版本且内容不同的产物不能覆盖已安装 release。正式升级时递增插件版本。确认不再需要后可手动删除本项目 `dist/`。
+
+### 宿主 SDK 迁移
+
+Cursor 0.1.12、能力示例 1.0.1 开始声明 `hostSdk: {min: "0.1.0", maxExclusive: "0.2.0"}`。
+需先使用包含宿主 SDK 加载功能的 Aibo 构建；此前提交并不支持这个字段。SDK npm 包仅作
+`devDependencies`，插件安装目录不包含 `node_modules/@aibo`。宿主提供公开的 runtime 和
+protocol 入口，不公开任意内部依赖。Node 22+ 和 Cursor CLI 仍由本机提供。
+本地 smoke 使用宿主 preload；正式安装由 Aibo 自动加载。使用 bundler 时将公开 SDK
+入口设置为 external；第三方库仍由插件自行携带。已有旧插件保留自带 SDK 的加载方式。
 
 ## 3. 开发能力插件
 

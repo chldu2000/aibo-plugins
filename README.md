@@ -19,7 +19,7 @@ pnpm run verify
 
 本项目根目录没有第三方依赖，无需先安装。构建会从本地 Aibo 源码打包尚未公开发布的 SDK，离线安装到独立构建目录，并输出三个可安装目录的绝对路径。
 自定义宿主位置：`AIBO_ROOT=/path/to/aibo pnpm run verify`。
-每次构建创建独立 `dist/build-*` 目录；安装包不依赖宿主源码或开发路径。
+每次构建创建独立 `dist/build-*` 目录；安装包不依赖宿主源码或开发路径，也不携带 Aibo SDK。能力插件声明 `hostSdk`，需要支持宿主 SDK 0.1.x 的新 Aibo；旧宿主需先升级。
 
 在 Aibo 的能力插件管理入口安装输出的 `cursor` 或 `capability` 目录并启用；在呈现包管理入口安装 `presentation` 目录并选择该呈现。Cursor 插件需要预先安装 Cursor CLI，并运行 `agent login`。
 构建和自动检查不能代替桌面端安装与交互验收。

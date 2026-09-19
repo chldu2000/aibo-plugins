@@ -1,10 +1,17 @@
 {
-  "name":"aibo-capability-starter",
-  "version":"1.0.0",
-  "private":true,
-  "type":"module",
-  "files":["plugin.json","dist"],
-  "bundledDependencies":["@aibo/capability-runtime","@aibo/plugin-protocol"],
-  "dependencies":{"@aibo/capability-runtime":"0.1.0","@aibo/plugin-protocol":"0.1.0"},
-  "scripts":{"build":"tsc -p tsconfig.json"}
+  "name": "aibo-capability-starter",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "files": [
+    "plugin.json",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@aibo/capability-runtime": "0.1.0",
+    "@aibo/plugin-protocol": "0.1.0"
+  }
 }
