@@ -61,6 +61,12 @@ take precedence on name collisions.
 Run `node scripts/probe-cursor-commands.mjs` to check the real native/workspace directory
 and a local native utility command without sending a model request.
 
+Version 0.1.13 classifies ACP descriptions ending in `(builtin skill)`,
+`(project skill)`, or `(user skill)` as Skills in the command menu. These are the
+origin markers emitted by Cursor CLI 2026.09.18-9a7762b; ACP currently supplies no
+structured skill type. Unrecognized entries remain Agent commands and retain
+their original descriptions and slash syntax.
+
 
 Version 0.1.11 targets Aibo `7865fad` or newer. All six optional operations pin the
 host's `session-features.v1.json` input/output contracts. Command, model, reasoning

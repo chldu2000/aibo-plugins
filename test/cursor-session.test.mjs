@@ -467,6 +467,27 @@ test('partial reasoning failure exposes confirmed state without claiming the ful
 
 const commandUpdate = (sessionId, availableCommands) => ({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'available_commands_update', availableCommands } } });
 
+test('Cursor ACP skill origin markers survive as skill menu categories', async () => {
+  const transport = new FakeTransport();
+  const session = new CursorSession({ transportFactory: () => transport });
+  await session.open(parameterOpen);
+  const skills = ['builtin', 'project', 'user'].map(origin => ({
+    name: `${origin}-skill`, description: `Inspect files. (${origin} skill)`, input: { hint: '[scope]' },
+  }));
+  transport.emitNotification(commandUpdate(session.sessionId, [...skills,
+    { name: 'workspace-command', description: 'Inspect files. (project)' },
+    { name: 'create-skill', description: 'Create a skill' },
+    { name: 'mentions-marker', description: 'Explain (user skill) markers.' },
+    { name: 'no-description' },
+  ]));
+  const { commands } = await session.commands();
+  assert.deepEqual(commands.filter(command => command.category === 'skill'), skills.map(command => ({
+    name: command.name, description: command.description, source: 'skill', category: 'skill', execution: 'prompt', argumentHint: '[scope]',
+  })));
+  assert.ok(commands.slice(3).every(command => command.source === 'agent' && command.category === 'agent'));
+  await session.close();
+});
+
 test('native command menu waits for the initial notification, then replaces idle updates', async () => {
   const transport = new FakeTransport();
   const session = new CursorSession({ transportFactory: () => transport, commandWaitMs: 50 });

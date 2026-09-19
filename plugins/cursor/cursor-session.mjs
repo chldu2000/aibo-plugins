@@ -266,8 +266,12 @@ export class CursorSession {
       const key = command.name.toLowerCase();
       if (seen.has(key)) return [];
       seen.add(key);
+      // Cursor ACP currently encodes skill origins in description suffixes,
+      // rather than a structured type field. Keep unknown commands as agent
+      // commands; mentioning "skill" elsewhere is not a classification signal.
+      const category = typeof command.description === 'string' && /\((?:builtin|project|user) skill\)$/.test(command.description) ? 'skill' : 'agent';
       return [{ name: command.name, description: typeof command.description === 'string' ? command.description.slice(0, 4000) : null,
-        source: 'agent', category: 'agent', execution: 'prompt',
+        source: category, category, execution: 'prompt',
         ...(typeof command.input?.hint === 'string' ? { argumentHint: command.input.hint.slice(0, 1000) } : {}),
       }];
     });
