@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { StringDecoder } from 'node:string_decoder';
 
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
+const MAX_PROMPT_BYTES = 32 * 1024 * 1024;
 const MAX_STDERR_BYTES = 64 * 1024;
 
 export class AcpTransport {
@@ -95,9 +96,10 @@ export class AcpTransport {
     if (!this.child || this.closed || !this.child.stdin.writable) throw new Error('Cursor ACP transport is not writable');
     const frame = `${JSON.stringify(message)}\n`;
     const bytes = Buffer.byteLength(frame);
-    if (bytes > MAX_FRAME_BYTES) throw new Error('Cursor ACP frame exceeds 8 MiB');
+    const limit = message.method === 'session/prompt' ? MAX_PROMPT_BYTES : MAX_FRAME_BYTES;
+    if (bytes > limit) throw new Error(`Cursor ACP frame exceeds ${limit / 1024 / 1024} MiB`);
     if (this.writePaused) {
-      if (this.queuedWriteBytes + bytes > MAX_FRAME_BYTES) throw new Error('Cursor ACP write queue exceeds 8 MiB');
+      if (this.queuedWriteBytes + bytes > MAX_PROMPT_BYTES) throw new Error('Cursor ACP write queue exceeds 32 MiB');
       this.writeQueue.push(frame);
       this.queuedWriteBytes += bytes;
       return;

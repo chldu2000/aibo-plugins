@@ -114,3 +114,25 @@ Native commands supply `insertionText: "/name "`; no host brand-specific prefix 
 is required. Session tree, branch timeline, forks, compaction and goal lifecycle remain
 undeclared because this adapter does not implement those contracts. `session.snapshot`
 is not a synonym for this plugin's opaque recovery data.
+
+## Image input (0.1.16)
+
+Requires an Aibo host with the `image.input` attachment contract. The plugin
+advertises image support only when Cursor's ACP v1 initialize response declares
+`agentCapabilities.promptCapabilities.image: true`. Host image descriptors are
+converted to native ACP `{type:"image", mimeType, data}` content blocks; image
+bytes are not substituted with a text path. Ordinary host attachment references
+remain in the accompanying prompt text.
+
+PNG, JPEG, GIF and WebP use the host limits: 8 images per message, 10 MiB per
+image and 20 MiB total. Invalid types, missing files, symbolic links and oversized
+images are rejected before the native turn starts. Outgoing prompt frames allow
+32 MiB for Base64 encoding; incoming frames remain limited to 8 MiB.
+
+Install the newly built `cursor` directory through Aibo's plugin management and
+create a new Cursor session. Existing sessions remain pinned to their original
+plugin release. CLI image capability does not guarantee that every selected
+model supports vision.
+
+Protocol references: [ACP v1 initialization](https://agentclientprotocol.com/protocol/v1/initialization#prompt-capabilities),
+[image content](https://agentclientprotocol.com/protocol/v1/content#image-content).

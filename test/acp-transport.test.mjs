@@ -126,3 +126,16 @@ test('ACP transport settles pending requests on timeout, stdout EOF, and stdin f
     assert.equal(transport.pending.size,0);
   });
 });
+
+test('image prompts can exceed 8 MiB while ordinary frames retain their bound', async () => {
+  const child=fakeProcess();const written=frames(child.stdin);
+  const transport=new AcpTransport({spawnProcess:()=>child,cwd:'/workspace'}).start();
+  const params={sessionId:'image',prompt:[{type:'image',mimeType:'image/png',data:'A'.repeat(9*1024*1024)}]};
+  const pending=transport.request('session/prompt',params);
+  await tick();
+  assert.equal(written[0].params.prompt[0].data.length,9*1024*1024);
+  child.stdout.write(`${JSON.stringify({jsonrpc:'2.0',id:1,result:{stopReason:'end_turn'}})}\n`);
+  assert.equal((await pending).stopReason,'end_turn');
+  await assert.rejects(transport.request('other',params),/exceeds 8 MiB/);
+  await transport.close();
+});

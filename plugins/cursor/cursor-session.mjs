@@ -1,3 +1,4 @@
+import { imageInput } from './image-input.mjs';
 import { AcpTransport } from './acp-transport.mjs';
 import { modelParameters, selectValues } from './model-config.mjs';
 
@@ -150,9 +151,10 @@ export class CursorSession {
     }
   }
 
-  async prompt({ text, turnId, additionalInstructions = '', writable = false }) {
+  async prompt({ text, turnId, attachments = [], additionalInstructions = '', writable = false }) {
     if (this.phase !== 'ready' || !this.sessionId) throw pluginError('busy', 'Cursor session is not ready');
     if (writable !== (this.modeId === 'agent')) throw pluginError('permission_denied', writable ? 'Cursor write turn requires edit mode' : 'Cursor edit mode requires a write-authorized turn');
+    const images = imageInput(attachments, this.agentCapabilities?.promptCapabilities?.image === true);
     this.phase = 'prompting';
     this.turnId = turnId;
     this.messageText = '';
@@ -170,7 +172,7 @@ export class CursorSession {
     try {
       const result = await this.transport.request('session/prompt', {
         sessionId: this.sessionId,
-        prompt: [{ type: 'text', text: promptText }],
+        prompt: [{ type: 'text', text: promptText }, ...images],
       }, 12 * 60 * 60 * 1_000);
       if (this.messageText) this.#event('message.completed', { itemId: this.messageItemId, text: this.messageText }, { itemId: this.messageItemId });
       if (this.reasoningText) this.#event('reasoning.completed', { itemId: this.reasoningItemId, summary: this.reasoningText }, { itemId: this.reasoningItemId });
@@ -250,7 +252,7 @@ export class CursorSession {
     return { resolved: true, recovery: this.recovery(), capabilities: this.capabilities() };
   }
 
-  capabilities() { return this.modelConfig ? [...CAPABILITIES, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : [...CAPABILITIES]; }
+  capabilities() { const capabilities = [...CAPABILITIES, ...(this.agentCapabilities?.promptCapabilities?.image === true ? ['image.input'] : [])]; return this.modelConfig ? [...capabilities, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : capabilities; }
 
   async commands() {
     if (!this.sessionId || !this.transport || this.transport.closed) throw pluginError('invalid_session', 'Cursor command directory requires an open session');

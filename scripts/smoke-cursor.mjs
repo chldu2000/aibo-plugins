@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -76,6 +76,12 @@ if (premium.output.status !== 'completed' || !events.some(event => event.payload
 await invoke('auto', 'dev.aibo.cursor.model.select', 'dev.aibo.cursor.operation.model-select', { action: 'set', reference: 'auto' });
 const turn=await invoke('turn','aibo.session.turn','dev.aibo.cursor.session.turn',{text:'hello'},'smoke-turn');
 if(turn.output.status!=='completed'||!events.some(event=>event.type==='message.delta'&&event.payload.delta==='AIBO_CURSOR_OK')||!events.some(event=>event.type==='turn.completed'))throw new Error('Cursor package did not stream and complete the fake turn');
+const imagePath=path.join(packagePath,'smoke-image.png');
+await writeFile(imagePath,Buffer.from('89504e470d0a1a0a','hex'));
+try {
+  const imageTurn=await invoke('image-turn','aibo.session.turn','dev.aibo.cursor.session.turn',{text:'image smoke',attachments:[{attachmentId:'image',type:'image',path:imagePath,mimeType:'image/png'}]},'image-turn');
+  assert.equal(imageTurn.output.status,'completed');
+} finally { await unlink(imagePath); }
 let recovery = turn.output.recovery;
 for (const control of manifest.contributions[0].sessionControls) {
   await invoke(`close-${control.id}`, 'aibo.session.close', 'dev.aibo.cursor.session.close', {});

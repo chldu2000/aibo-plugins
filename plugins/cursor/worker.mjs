@@ -51,11 +51,10 @@ async function invoke(request, tools) {
     if (request.capability === 'aibo.session.close') return await session.close();
     if (request.capability === 'aibo.session.turn' || request.capability === 'aibo.session.turn.write') {
       if (!context.turnId || typeof input.text !== 'string' || !input.text.trim()) throw Object.assign(new Error('Cursor turn requires text and turn identity'), { kind: 'invalid_input' });
-      if (Array.isArray(input.attachments) && input.attachments.length) throw Object.assign(new Error('Cursor attachments are not enabled in this release'), { kind: 'unsupported' });
       if (request.capability.endsWith('.write') && !context.permissions.includes('workspace.write')) throw Object.assign(new Error('Cursor write turn requires workspace.write'), { kind: 'permission_denied' });
       const writable = request.capability.endsWith('.write');
       const instructions = additionalInstructionsFromSettings(context.settings);
-      return await session.prompt({ text: input.text, turnId: context.turnId, additionalInstructions: instructions, writable });
+      return await session.prompt({ text: input.text, attachments: input.attachments, turnId: context.turnId, additionalInstructions: instructions, writable });
     }
     throw Object.assign(new Error('Unsupported Cursor capability'), { kind: 'unsupported' });
   } finally {

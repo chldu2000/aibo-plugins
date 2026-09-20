@@ -595,3 +595,34 @@ test('slash commands retain their leading slash and exact arguments despite addi
   transport.finishPrompt({ stopReason: 'end_turn' }); await turn;
   await session.close();
 });
+
+test('image capability is negotiated and images reach ACP without changing text-only sessions', async () => {
+  const {mkdtemp,writeFile,rm}=await import('node:fs/promises');
+  const {tmpdir}=await import('node:os');
+  const {join}=await import('node:path');
+  const root=await mkdtemp(join(tmpdir(),'cursor-image-'));
+  const data=Buffer.from('89504e470d0a1a0a010203','hex');
+  const path=join(root,'image.png');await writeFile(path,data);
+  try {
+    for(const supported of [false,true]) {
+      const transport=new FakeTransport();const request=transport.request.bind(transport);
+      transport.request=async(method,params)=>{
+        if(method==='initialize'){const result=await request(method,params);result.agentCapabilities.promptCapabilities={image:supported};return result;}
+        return request(method,params);
+      };
+      const session=new CursorSession({transportFactory:()=>transport});
+      await session.open({mode:'create',workspaceId:'image',workspacePath:root,executionProfile:askProfile,permissions:['workspace.read']});
+      assert.equal(session.capabilities().includes('image.input'),supported);
+      const input={text:'describe image',turnId:'image-turn',attachments:[{attachmentId:'image',type:'image',path,mimeType:'image/png'},{attachmentId:'file-reference'}]};
+      if(supported){
+        const pending=session.prompt(input);
+        assert.deepEqual(transport.requests.at(-1).params.prompt,[{type:'text',text:input.text},{type:'image',mimeType:'image/png',data:data.toString('base64')}]);
+        transport.finishPrompt({stopReason:'end_turn'});assert.equal((await pending).status,'completed');
+      }else{
+        await assert.rejects(session.prompt(input),/does not advertise/);
+        assert.equal(session.phase,'ready');assert.equal(transport.requests.some(item=>item.method==='session/prompt'),false);
+      }
+      await session.close();
+    }
+  }finally{await rm(root,{recursive:true,force:true});}
+});

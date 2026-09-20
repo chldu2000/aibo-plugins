@@ -15,7 +15,7 @@ const send = message => process.stdout.write(`${JSON.stringify(message)}\n`);
 createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', line => {
   const message = JSON.parse(line);
   const { id, method, params } = message;
-  if (method === 'initialize') return send({jsonrpc:'2.0',id,result:{protocolVersion:1,agentCapabilities:{loadSession:true},authMethods:[{id:'cursor_login'}]}});
+  if (method === 'initialize') return send({jsonrpc:'2.0',id,result:{protocolVersion:1,agentCapabilities:{loadSession:true,promptCapabilities:{image:true}},authMethods:[{id:'cursor_login'}]}});
   if (method === 'authenticate') return send({jsonrpc:'2.0',id,result:{}});
   if (method === 'session/new' || method === 'session/load') {
     send({jsonrpc:'2.0',id,result:method === 'session/new' ? {sessionId:'fake-cursor-session',...config()} : config()});
@@ -27,6 +27,7 @@ createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', line =
     return send({jsonrpc:'2.0',id,result:config()});
   }
   if (method === 'session/prompt') {
+    if(params.prompt[0].text==='image smoke' && (params.prompt[1]?.type!=='image' || params.prompt[1].mimeType!=='image/png' || params.prompt[1].data!=='iVBORw0KGgo=')) return send({jsonrpc:'2.0',id,error:{code:-32602,message:'Image bytes missing or changed'}});
     send({jsonrpc:'2.0',method:'session/update',params:{sessionId:params.sessionId,update:{sessionUpdate:'agent_message_chunk',messageId:'fake-message',content:{type:'text',text:params.prompt[0].text === '/copy-request-id' ? 'AIBO_NATIVE_COMMAND_OK' : model === 'premium' ? 'AIBO_CURSOR_PREMIUM_OK' : 'AIBO_CURSOR_OK'}}}});
     return send({jsonrpc:'2.0',id,result:{stopReason:'end_turn'}});
   }
