@@ -1,6 +1,6 @@
 # Cursor ACP 实现与验收 checklist
 
-对应[实现规格](cursor-acp-spec.md)。所有未勾选项均表示待做；文档核对不等于实现或真机验证。阶段按 P0 → P1 → P2 → P3 → P4 执行，P0 决定可支持的执行配置。
+对应[当前实现规格](cursor-acp-spec.md)。本表保留历次累计验收状态；已勾选项仅表示对应历史阶段已有证据，不能代表当前 release 全部复验通过。未勾选项表示仍需补齐相应证据，不一定表示代码尚未实现。具体版本和结果见[验证记录](cursor-acp-validation.md)。文档整理不改变完成状态；按 P0 → P1 → P2 → P3 → P4 检查当前版本。
 
 ## P0 — 锁定合同与可行性
 
@@ -10,8 +10,8 @@
 - [x] 在临时工作区记录 Node、Cursor CLI 精确版本、宿主提交、OS/架构；确认真实 `agent acp`。
 - [x] 保存脱敏 initialize/new/load 响应：协议版本、authMethods、loadSession、模式和可选模型能力。
 - [ ] 验证 `agent login` 后从 Applications 启动 Aibo 可使用登录态和 PATH；未登录时可诊断、不挂起。
-- [ ] 建立 executionProfile 支持矩阵并执行文件写入、目录越界、命令、网络和 MCP 探针；不支持组合在 open 拒绝。
-- [ ] 证明 user 审核路由可用；auto-review/none 未实现时明确拒绝，不自动改语义。
+- [ ] 按当前 Agent/Ask/Plan 支持矩阵验证文件、命令、网络和 MCP 的原生行为及用户/项目规则；不支持组合在 open 拒绝，不把 agent-managed 当作 OS 沙箱或网络阻断。
+- [ ] 证明 Agent 的 user/on-request 审核路由，以及 Ask/Plan 的 never/none 拒绝工具授权；auto-review 和其他不支持组合明确拒绝。
 - [ ] 验证第三方 approval/user-input 路由、单选/多选、完整计划展示及 control 能力；记录必要宿主改动。
 
 完成条件：至少一组明确的受支持配置可完成真实 ACP 往返，权限边界有证据；不以“能输出文字”代替可行性证明。
@@ -50,18 +50,22 @@
 - [x] recovery 校验版本、sessionId 和工作区绑定，不包含凭据、pending 或伪造 offset。
 - [ ] open/轮次结束后 recovery 确实由宿主持久化；不是只测进程内 snapshot。
 - [ ] 同绑定存活运行时被复用，元数据读取不重复 new/load。
-- [ ] 空闲回收、关闭后重开、Aibo 重启均 load 同一 nativeSessionId，下一轮保留原上下文。
+- [ ] 空闲回收、关闭后重开、Aibo 重启分别验证：有历史或缺少 hasPrompt 标记时 load 原会话；仅明确 hasPrompt:false 的空会话允许 new。
 - [x] load 回放不重复追加 Aibo 消息，不重发历史审批和工具动作。
 - [ ] prompt 发出后崩溃、结果返回前断连：不自动重试，提示结果可能未知；不承诺补齐丢失尾部。
-- [ ] 原生会话缺失、账号变化、不支持 load、未知 recovery 版本明确失败，不悄悄 new。
+- [ ] 需 load 的原生会话缺失、账号变化、不支持 load，以及未知 recovery 版本明确失败，不悄悄 new。
 - [ ] 插件升级后已有会话保留 release/contribution 绑定；新建会话使用新版本。
 - [x] additionalInstructions 校验 schema/version，每次调用读取快照且不改用户原消息。
 - [ ] 验证三层继承、空字符串覆盖、清空本层、运行中保存下一轮生效和 contribution 隔离。
-- [x] 不支持的附件、推理强度明确拒绝；没有 ACP 模型配置时拒绝显式模型请求；无未实现的 Fast/fork/goal 能力入口。
+- [x] 历史降级检查：未协商的附件/推理选项明确拒绝；没有 ACP 模型配置时拒绝显式模型请求；无未实现的 Fast/fork/goal 能力入口。当前图片及参数支持另验下列新增项。
 - [x] 四个标准生命周期操作与共享合同逐字段一致，由宿主派生基础 `queue.manage`；provider 不伪造原生队列能力。
 - [x] 未实现可靠 ACP steering 时不声明 queue operation、`queue.manage` 或 `queue.steer`；运行中消息等待普通 FIFO 派发。
 - [x] 不报告未实现的 Aibo goal 能力；Cursor 结构化 task 只映射字段充分的 `subagent.updated`，不伪造缺失的 `subagent.message` 过程历史。
 - [x] 0.1.8 增加模型目录、切换确认、恢复、迟到响应和下一轮模型路由测试；按 ACP 配置动态报告 model.select。真实验收结果见 validation 的 0.1.8 节。
+
+- [ ] 对当前 release 补齐真实模型/推理/上下文菜单的选择、原生确认、跨进程恢复和切换模型隔离证据。
+- [ ] 对当前 release 补齐原生命令/Skills 菜单的展示、选择与 slash 透传 UI 证据。
+- [ ] 对 0.1.16 图片输入补齐支持/不支持模型、实际图像理解、非法文件及附件 UI 的真实端到端证据。
 
 完成条件：重启恢复和调用间配置更新通过真实桌面流程；不支持能力不会显示成可用。
 
@@ -72,10 +76,10 @@
 - [ ] 从 Applications 启动 Aibo，独立安装 Cursor 包；缺依赖、启用、禁用、卸载时轮盘入口正确变化。
 - [x] 隔离 `tauri dev` 实例安装、启用并发现 Cursor provider；真实会话由宿主派生 `queue.manage` 且无 `queue.steer`，随后 close、disable、uninstall 成功。另一次消息探针进入 Timeline 后由 Cursor 服务返回 `resource_exhausted`，未据此冒充成功轮次或完整 UI 验收。
 - [ ] 验证固定绑定会话在插件不可用时明确报错，不切换其他 provider。
-- [ ] 双皮肤验证消息、工具、审批、提问、计划、取消和错误；现有 presentation 包默认继承正常。
+- [ ] 验证默认 ak-ui 明暗主题及受影响外部呈现的消息、工具、审批、提问、计划、取消和错误；presentation 包默认继承正常。
 - [ ] 每个 manifest 宣告的平台均有真实安装、执行、恢复证据；删去未验证平台。
 - [x] 在发布证据中记录精确 CLI/Node 版本、宿主提交、OS/架构、profile 支持矩阵、测试命令和结果。
 - [ ] 产物移至独立目录检查无开发机路径、相邻宿主依赖、凭据或未脱敏日志；版本字段一致。
 - [x] 发布说明列明需预先安装/登录 Cursor、已验证版本、配置限制、恢复边界和已知问题。
 
-发布完成条件：P0–P4 的首版必需项全部通过；可选模型项未做则保持禁用。现有 verify 仅检查本仓库原骨架，不单独证明 Cursor 协议、安装或真实交互可用。
+发布完成条件：当前 release 对应的必需项均有证据；未实现能力保持不声明。现有 verify 已包含 Cursor 单测和打包 Worker 的假 ACP 合同 smoke，但不单独证明真实 CLI、安装或桌面交互通过。

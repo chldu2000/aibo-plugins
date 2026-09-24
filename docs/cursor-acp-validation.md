@@ -1,5 +1,9 @@
 # Cursor ACP 验证记录
 
+本文件按版本保留历史证据。各节的宿主、CLI、权限策略和能力限制仅适用于该节基线，
+不作为当前版本的实现规格；当前行为见[规格](cursor-acp-spec.md)与[插件说明](../plugins/cursor/README.md)。
+本次文档整理未重跑真实模型、登录或桌面验收，未补齐的门槛仍见[验收清单](cursor-acp-checklist.md)。
+
 验证日期：2026-09-17。仓库宿主基线：Aibo `dd2a458`。插件版本：`0.1.7`。
 
 环境：macOS 27.0 arm64、Node.js `v24.18.0`、Cursor CLI `2026.09.10-fd3934a`。验证工作区是 `/private/tmp` 下新建的空目录，不包含本仓库文件。

@@ -1,138 +1,97 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
+This page describes release **0.1.16**. Implementation details and historical acceptance results live in the repository's
+[specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
 
-Prerequisites:
+## Requirements and installation
 
-- Cursor CLI `2026.09.15-d2fe57e` (model catalog validated), or a compatible release.
-- Run `agent login` before starting Aibo.
-- Node.js 22 or newer.
-- For version 0.1.12+, an Aibo build supporting host SDK 0.1.x (`hostSdk`). The plugin no longer bundles Aibo SDK packages.
+- Node.js 22 or newer and Cursor CLI; run `agent login` before starting Aibo.
+- The manifest currently declares macOS arm64. Model/parameter integration was checked against CLI
+  `2026.09.15-d2fe57e`; skill description markers against `2026.09.18-9a7762b`. These are compatibility
+  baselines for those features, not proof that every CLI version or model works.
+- An Aibo build with host SDK `>=0.1.0 <0.2.0`, the shared optional-session-feature contracts,
+  provider `sessionControls`, `executionPolicy: "agent-managed"` (migration 0047), and the `image.input` attachment contract.
+  The SDK range alone does not prove that the build contains these host features.
 
-Version 0.1.15 requires an Aibo host supporting `executionPolicy: "agent-managed"`
-and the provider-managed session controls contract (migration 0047). Older hosts
-reject the new declaration rather than silently treating it as sandboxed execution.
+From the repository root, run `pnpm run verify`, then install and enable the emitted `cursor` directory
+in Aibo's capability plugin manager. Create a new Cursor session to use the installed release;
+existing sessions remain pinned to their original release. Aibo SDK packages are supplied by the host.
 
-The session mode menu exposes **Agent**, **Ask**, and **Plan** through plugin-owned
-`sessionControls`. Agent maps to `edit`; Ask and Plan map to `ask` and `plan`.
-The host persists the choice and resumes the conversation with that mode,
-retaining model and reasoning selections. Cursor does not persist empty sessions:
-a binding explicitly marked `hasPrompt: false` is recreated on resume. Once a
-prompt has been sent (or for older bindings without that marker), resume must load
-the original native session; failures never silently create a fresh conversation. Every mode change must be confirmed by
-Cursor ACP. Debug is absent because the validated CLI ACP interface does not offer it.
+## Modes and permissions
 
-Permission ownership:
+The plugin owns the **Agent**, **Ask**, and **Plan** menu through `sessionControls`.
+They map to Aibo `edit`, `ask`, and `plan`, respectively. Each selection must be confirmed by Cursor ACP.
+Debug is absent because the CLI interface used by this adapter does not offer it.
 
-- Agent: Cursor manages filesystem, command, network and MCP permissions. Aibo
-  admits the top-level write turn in a trusted workspace and forwards native tool
-  approval requests to the user, returning `allow_once` or `reject_once`.
-- Ask and Plan: Cursor's native modes provide read-only behavior; the plugin
-  rejects tool permission requests. This is a native behavior contract, not an OS sandbox.
-- Aibo does not inject Cursor allow/deny rules, intercept every native tool call,
-  or claim workspace-only writes or blocked network access. Cursor's own user and
-  project permission configuration remains effective; already-allowed operations
-  may not generate an Aibo approval prompt.
-- `agentManagedPermissions` identifies this ownership in host metadata;
-  `nativeSandbox` is false. Native permission declarations grant no Core tool access.
+- **Agent:** Cursor manages filesystem, command, network and MCP permissions. Aibo admits the top-level
+  write turn in a trusted workspace and forwards native approvals, using `allow_once` or `reject_once`.
+- **Ask / Plan:** Cursor's native modes provide read-only behavior; the plugin rejects tool permission requests.
+- These are native behavior contracts. Aibo does not inject Cursor permission rules, intercept every native
+  tool call, or provide an OS sandbox, workspace-only writes or blocked network. Cursor user/project rules remain
+  effective; already-allowed operations may not generate a prompt. Native permissions grant no Aibo Core tool access.
 
-Opening a session selects a mode using `workspace.read`. Executing an Agent turn
-requires the separate `aibo.session.turn.write` operation and `workspace.write`;
-opening Agent mode alone is not write authorization. Aibo automatic review and
-host-enforced execution profiles are rejected. Attachments and importing Cursor
-Desktop conversations remain unsupported.
+Opening Agent mode uses `workspace.read`; executing its turn separately requires
+`aibo.session.turn.write` and `workspace.write`. Aibo automatic review and host-enforced sandbox profiles are rejected.
 
-Run `node scripts/probe-cursor-desktop.mjs --contract-only` to verify the installed
-host menu and Plan → Agent → Ask native session recovery without a model prompt.
+## Models, commands and images
 
-With Aibo `dd2a458` or newer, the host derives `queue.manage` from this plugin's standard Runtime 2.1 open/turn/cancel/close contracts. Waiting messages, stable IDs, FIFO delivery, pause/resume and uncertain-delivery handling remain host-owned. This release does not advertise native `queue.steer`: messages submitted during a running Cursor turn wait for that turn to settle, while send-now remains available when the session is idle.
+| Feature | Behavior |
+| --- | --- |
+| Model selection | Negotiates `model.select` when ACP supplies a valid selector; native IDs, including Auto, remain opaque. |
+| Reasoning and context | Uses Cursor's parameterized picker when available; options belong to the selected model. Native labels/order are preserved, and token counts are omitted unless explicitly provided. |
+| Commands and Skills | Uses ACP `available_commands_update`, with a first-read wait of up to 10 seconds and later replacement snapshots. |
+| Image input | Advertised only when ACP declares `agentCapabilities.promptCapabilities.image: true`; descriptors become native image content blocks. |
 
-Cursor task tool calls are projected as Aibo subagent task cards with stable IDs and explicit terminal states. Cursor ACP currently exposes only completion-level task metadata, so this release does not invent `subagent.message` history. It also does not report goal capabilities because ACP has no matching goal lifecycle.
+Model/parameter changes require an idle session and native confirmation. Selections are saved in recovery and
+replayed after model selection; an explicit host model takes precedence and discards old-model parameters.
+Multiple reasoning dimensions appear as explicit combinations. Auto may have no parameter choices.
+The parameterized-picker negotiation is a Cursor extension, not a guarantee of core ACP.
+Catalog visibility does not imply subscription entitlement or reveal the model routed behind Auto;
+actual provider errors are preserved.
 
-Build from the repository root with `pnpm run verify`, then install the emitted `cursor` directory from Aibo's capability plugin manager.
+Commands are reloaded on resume. Slash text and arguments pass unchanged through the normal turn and approval path;
+`additionalInstructions` applies only to ordinary messages. Aibo adds its own capability-gated shortcuts and wins name collisions.
+Descriptions ending in `(builtin skill)`, `(project skill)` or `(user skill)` are classified as Skills;
+unknown formats retain their description and Agent-command semantics. This is the ACP directory, not the full interactive CLI palette.
 
-Version 0.1.8 negotiates `model.select` when Cursor ACP supplies a model config selector. Aibo displays the backend's catalog (including Auto), reads its current value, and switches models through `session/set_config_option`. References are opaque: Auto may be `default[]`, not `auto`. Selection is confirmed against the returned config, persisted in recovery, and reapplied after loading; an explicit host profile model takes precedence. Running turns reject model changes. ACP config updates refresh the cached catalog, including while idle.
+Images support PNG, JPEG, GIF and WebP: at most 8 per message, 10 MiB each and 20 MiB total.
+Invalid descriptors, missing files, symbolic links, unsupported types and oversized images fail before the native turn.
+Outgoing prompt frames allow 32 MiB for Base64; incoming frames remain limited to 8 MiB.
+Host attachment references remain in accompanying text; image bytes are sent separately as ACP content.
+CLI image capability does not guarantee that every selected model supports vision.
 
-Catalog membership does not imply subscription entitlement. Premium models remain listed; Cursor's actual prompt-time permission/subscription errors are preserved. No plan, lock state, or hidden model behind Auto is inferred.
+## Recovery and limits
 
-Use the newly installed release for a new Aibo session; existing sessions remain pinned to their original plugin release. `node scripts/probe-cursor-models.mjs --prompt` checks the real catalog, selection, an Auto reply and cross-process recovery in a temporary workspace, then restores the original model configuration.
+Cursor does not persist empty sessions. Only a recovery binding explicitly marked `hasPrompt: false`
+may create a replacement native session. After a prompt has been sent, or if an older binding lacks the marker,
+resume must load the original session and fail explicitly if it cannot. Recovery replays confirmed model parameters
+and applies the host-selected mode. It does not import Cursor Desktop conversations or reconstruct missing event tails.
 
-Version 0.1.9 enables Cursor's `_meta.parameterizedModelPicker` negotiation and adds
-`model.reasoning` and `model.context-window`. Levels retain native names and ordering;
-multiple thought parameters (e.g. Thinking and Effort) appear as explicit combinations.
-Level IDs are model-scoped opaque IDs, so identical labels on different models do not
-claim equivalent semantics. Context choices retain native IDs and labels; token counts
-are omitted unless explicitly supplied by the backend.
+The host derives the waiting queue from standard lifecycle contracts; IDs, FIFO, pause/resume and uncertain-delivery
+handling remain host-owned. Native `queue.steer` is not advertised, so messages during a running turn wait for it to settle.
+Cursor task metadata produces subagent cards, without invented `subagent.message` history.
+Fast/service-tier, goal lifecycle, forks, remote session trees, branch timelines and thread snapshots remain undeclared.
+Opaque recovery data is not `session.snapshot`. Aibo tools are not automatically bridged into Cursor MCP.
 
-ACP supplies parameter definitions for the current model only. Select a model first to
-load its reasoning/context choices. Auto can have no parameter choices. Unsupported
-CLIs retain the variant model selector. This extension is verified against CLI
-`2026.09.15-d2fe57e`; it is a Cursor-specific compatibility dependency, not core ACP.
-Settings are confirmed, saved in recovery and replayed after model selection on resume.
-A different explicit profile model discards previous-model parameter choices. Fast and
-other unrelated native parameters are left to Cursor. Run
-`node scripts/probe-cursor-parameters.mjs` for real selection/recovery checks.
+## Validation commands
 
-Version 0.1.10 adds `command.list` through `dev.aibo.cursor.command.list`.
-Cursor's `available_commands_update` supplies native command names, descriptions and
-argument hints for the `/` menu, including workspace commands. The first directory
-read waits up to 10 seconds for the asynchronous notification; no notification yields
-an empty directory. Later reads use the latest replacement snapshot. Commands are
-reloaded from Cursor on resume, never restored from a stale recovery snapshot.
+Run these from the repository root in an appropriate local environment:
 
-Slash input is sent unchanged through the usual turn/approval path. Additional
-instructions apply to ordinary messages only: prefixing a slash command would prevent
-Cursor from recognizing it. The plugin directory contains only ACP-advertised commands, not the full interactive
-CLI palette. Aibo merges its own capability-gated shortcuts into the menu; host shortcuts
-take precedence on name collisions.
-Run `node scripts/probe-cursor-commands.mjs` to check the real native/workspace directory
-and a local native utility command without sending a model request.
+- `pnpm run verify`: tests and packaged-worker smoke with a fake ACP engine; no real model or desktop acceptance.
+- `node scripts/probe-cursor-models.mjs --prompt`: real catalog, model selection, Auto prompt and cross-process recovery.
+- `node scripts/probe-cursor-parameters.mjs`: an Auto model prompt followed by real parameter selection and recovery.
+- `node scripts/probe-cursor-commands.mjs`: native/workspace command directory and a local utility command.
+- `node scripts/probe-cursor-desktop.mjs --contract-only`: isolated host installation/menu contracts and
+  Plan → Agent → Ask recovery without a model prompt; it does not replace visual interaction acceptance.
 
-Version 0.1.14 adds the official Cursor 2D cube as the session provider icon.
-The path comes from `General Logos/Cube/SVG/CUBE_2D_DARK.svg` in the
-[Cursor brand assets](https://cursor.com/brand), uniformly scaled to 22 units high
-and centered in the host's 24 × 24 viewBox. The host supplies the theme color.
-Cursor and its logo belong to Anysphere, Inc.; the mark identifies this plugin's
-Cursor integration and is not covered by this repository's code license.
+Native probes use temporary workspaces; the model probe attempts to restore its original selection before closing.
+Review each script's native requests and cleanup before running it. Consult the repository's
+[checklist](../../docs/cursor-acp-checklist.md) for remaining acceptance work; this README does not claim it all passed.
 
-Version 0.1.13 classifies ACP descriptions ending in `(builtin skill)`,
-`(project skill)`, or `(user skill)` as Skills in the command menu. These are the
-origin markers emitted by Cursor CLI 2026.09.18-9a7762b; ACP currently supplies no
-structured skill type. Unrecognized entries remain Agent commands and retain
-their original descriptions and slash syntax.
+## Icon attribution
 
-
-Version 0.1.11 targets Aibo `7865fad` or newer. All six optional operations pin the
-host's `session-features.v1.json` input/output contracts. Command, model, reasoning
-and context-window replies include `recovery` and the current `capabilities` alongside
-their native data; initialization advertises the same versioned operations. Host
-availability is the intersection of these declarations, the manifest and runtime
-handshake. Invalid or missing model/parameter selections are still rejected by the
-provider before calling ACP, even though the shared envelope allows omitted set fields.
-
-Native commands supply `insertionText: "/name "`; no host brand-specific prefix logic
-is required. Session tree, branch timeline, forks, compaction and goal lifecycle remain
-undeclared because this adapter does not implement those contracts. `session.snapshot`
-is not a synonym for this plugin's opaque recovery data.
-
-## Image input (0.1.16)
-
-Requires an Aibo host with the `image.input` attachment contract. The plugin
-advertises image support only when Cursor's ACP v1 initialize response declares
-`agentCapabilities.promptCapabilities.image: true`. Host image descriptors are
-converted to native ACP `{type:"image", mimeType, data}` content blocks; image
-bytes are not substituted with a text path. Ordinary host attachment references
-remain in the accompanying prompt text.
-
-PNG, JPEG, GIF and WebP use the host limits: 8 images per message, 10 MiB per
-image and 20 MiB total. Invalid types, missing files, symbolic links and oversized
-images are rejected before the native turn starts. Outgoing prompt frames allow
-32 MiB for Base64 encoding; incoming frames remain limited to 8 MiB.
-
-Install the newly built `cursor` directory through Aibo's plugin management and
-create a new Cursor session. Existing sessions remain pinned to their original
-plugin release. CLI image capability does not guarantee that every selected
-model supports vision.
-
-Protocol references: [ACP v1 initialization](https://agentclientprotocol.com/protocol/v1/initialization#prompt-capabilities),
-[image content](https://agentclientprotocol.com/protocol/v1/content#image-content).
+The provider icon uses `General Logos/Cube/SVG/CUBE_2D_DARK.svg` from the
+[Cursor brand assets](https://cursor.com/brand), uniformly scaled to 22 units high and centered in the host's
+24 × 24 viewBox. The host supplies theme color. Cursor and its logo belong to Anysphere, Inc.;
+the mark identifies this integration and is not covered by this repository's code license.
