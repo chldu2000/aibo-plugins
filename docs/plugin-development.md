@@ -27,7 +27,7 @@ Cursor 专用行为见[当前规格](cursor-acp-spec.md)，历史测试结果见
 | 呈现 | `aibo.presentation-package/v1`，hostApi/coreSemantics 1.0.0；还需核对实际快照和动作合同 |
 | Cursor 会话 | 精确可选功能合同、provider `sessionControls`、`agent-managed` 权限归属及 `image.input` 附件合同 |
 
-Cursor 当前为 0.1.16；0.1.15 起的原生权限声明需要包含 migration 0047 的宿主。
+Cursor 当前为 0.1.17；0.1.15 起的原生权限声明需要包含 migration 0047 的宿主。
 这是源码功能要求，不是一个已发布的宿主版本号；仅满足 hostSdk 范围也不能证明具备这些功能。
 验证时记录宿主提交/构建、插件 release、Node 和原生 CLI 精确版本。
 

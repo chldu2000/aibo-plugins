@@ -20,17 +20,11 @@ function contextOf(request) {
   return context;
 }
 
-// Feature replies share the host's recovery/capability envelope. Native catalogs
-// remain provider data; the host uses these contracts to negotiate availability.
-function featureReply(output) {
-  return { ...output, recovery: session.recovery(), capabilities: session.capabilities() };
-}
-
 async function commandDirectory() {
   const output = await session.commands();
-  return featureReply({ ...output, commands: output.commands.map(command => ({
-    ...command, insertionText: `/${command.name} `,
-  })) });
+  return { ...output, recovery: session.recovery(), capabilities: session.capabilities(),
+    commands: output.commands.map(command => ({ ...command, insertionText: `/${command.name} ` })),
+  };
 }
 
 async function invoke(request, tools) {
@@ -45,9 +39,9 @@ async function invoke(request, tools) {
       return await session.open({ mode: input.mode, workspaceId: context.workspaceId, workspacePath: context.workspacePath, executionProfile: input.executionProfile, recovery: input.recovery, permissions: context.permissions });
     }
     if (request.capability === 'dev.aibo.cursor.command.list') return await commandDirectory();
-    if (request.capability === 'dev.aibo.cursor.model.reasoning') return featureReply(await session.configure('reasoning', input));
-    if (request.capability === 'dev.aibo.cursor.model.context-window') return featureReply(await session.configure('context', input));
-    if (request.capability === 'dev.aibo.cursor.model.select') return featureReply(await session.models(input));
+    if (request.capability === 'dev.aibo.cursor.model.reasoning') return await session.configure('reasoning', input);
+    if (request.capability === 'dev.aibo.cursor.model.context-window') return await session.configure('context', input);
+    if (request.capability === 'dev.aibo.cursor.model.select') return await session.models(input);
     if (request.capability === 'aibo.session.close') return await session.close();
     if (request.capability === 'aibo.session.turn' || request.capability === 'aibo.session.turn.write') {
       if (!context.turnId || typeof input.text !== 'string' || !input.text.trim()) throw Object.assign(new Error('Cursor turn requires text and turn identity'), { kind: 'invalid_input' });

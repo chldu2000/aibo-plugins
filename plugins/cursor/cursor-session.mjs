@@ -301,8 +301,8 @@ export class CursorSession {
     } else if (input.action !== 'list') throw pluginError('invalid_input', 'Unknown Cursor configuration action');
     const parameters = this.parameters();
     return kind === 'reasoning'
-      ? { current: parameters.current, levels: parameters.levels.map(({ values, ...level }) => level), recovery: this.recovery() }
-      : { current: parameters.context?.currentValue ?? null, contextWindows: parameters.contextWindows, recovery: this.recovery() };
+      ? { current: parameters.current, levels: parameters.levels.map(({ values, ...level }) => level), recovery: this.recovery(parameters), capabilities: this.capabilities() }
+      : { current: parameters.context?.currentValue ?? null, contextWindows: parameters.contextWindows, recovery: this.recovery(parameters), capabilities: this.capabilities() };
   }
 
   async #setParameter(kind, value) {
@@ -337,7 +337,7 @@ export class CursorSession {
     } else if (input.action !== 'list') throw pluginError('invalid_input', 'Unknown Cursor model action');
     const parameters = this.parameters();
     return { current: this.modelConfig.current, currentContextWindow: parameters.context?.currentValue ?? null,
-      models: this.modelConfig.models.map(model => ({ ...model, reasoningEfforts: model.reference === this.modelConfig.current ? parameters.levels.map(({ values, ...level }) => level) : [], contextWindows: model.reference === this.modelConfig.current ? parameters.contextWindows : [] })), recovery: this.recovery() };
+      models: this.modelConfig.models.map(model => ({ ...model, reasoningEfforts: model.reference === this.modelConfig.current ? parameters.levels.map(({ values, ...level }) => level) : [], contextWindows: model.reference === this.modelConfig.current ? parameters.contextWindows : [] })), recovery: this.recovery(parameters), capabilities: this.capabilities() };
   }
 
   #readModelConfig(result) {
@@ -353,8 +353,7 @@ export class CursorSession {
     // Cursor has no explicit server acknowledgement for its picker extension.
     // Its parameterized model descriptor also identifies support when Auto has no parameters.
     this.parameterized ||= config.description === 'Controls which model is used for responses' || result.configOptions.some(option => ['thought_level', 'model_config'].includes(option.category));
-    const options = (config.options ?? []).flatMap(option => Array.isArray(option.options) ? option.options : [option]);
-    const models = options.filter(option => typeof option.value === 'string' && option.value.length).map(option => ({
+    const models = selectValues(config).map(option => ({
       id: option.value, reference: option.value, displayName: option.name || option.value,
       description: option.description ?? null,
     }));
@@ -375,8 +374,8 @@ export class CursorSession {
   }
 
   snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: this.capabilities() }; }
-  recovery() {
-    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, hasPrompt: this.hasPrompt, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: this.parameters().current, contextWindow: this.parameters().context?.currentValue ?? null } : {}) } };
+  recovery(parameters = this.parameters()) {
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, hasPrompt: this.hasPrompt, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: parameters.current, contextWindow: parameters.context?.currentValue ?? null } : {}) } };
   }
 
   async close() {

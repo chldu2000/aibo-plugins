@@ -1,5 +1,17 @@
 # Cursor ACP 验证记录
 
+## 2026-09-25 — Cursor 0.1.17 回复构造精简
+
+- 目标宿主：Aibo `d402f6f` 加本次工作区精简改动；Node.js `v24.18.0`，macOS arm64。
+- 模型选择、推理和上下文回复由 session 一次生成 recovery/capabilities，同一回复复用参数快照；
+  Worker 不再覆盖它们。模型目录复用已有原生 options 归一化，Runtime 2.1 与恢复 schema 保持不变。
+- `pnpm run verify`：53 项测试通过，离线打包及假 ACP Worker smoke 通过；覆盖真实打包后的
+  握手、模型/参数/命令封套 schema、恢复数据与流式回合。
+- 未调用真实 Cursor CLI 或模型，未执行本次真实桌面安装验收；没有将模拟结果计为这些层面的证据。
+- 清单与 npm 包同步为 0.1.17，Worker 从清单读取版本；新安装不覆盖相同版本旧内容，旧会话保留原 release。
+
+## 既有版本记录
+
 本文件按版本保留历史证据。各节的宿主、CLI、权限策略和能力限制仅适用于该节基线，
 不作为当前版本的实现规格；当前行为见[规格](cursor-acp-spec.md)与[插件说明](../plugins/cursor/README.md)。
 本次文档整理未重跑真实模型、登录或桌面验收，未补齐的门槛仍见[验收清单](cursor-acp-checklist.md)。

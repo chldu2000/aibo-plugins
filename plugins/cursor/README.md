@@ -1,8 +1,12 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.1.16**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.1.17**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
+
+Release 0.1.17 consolidates model-response recovery generation and native option normalization.
+It preserves the Runtime 2.1 contracts and host requirements. Install it as a new release;
+existing sessions retain their pinned installation.
 
 ## Requirements and installation
 

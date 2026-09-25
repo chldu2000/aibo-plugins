@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-本文描述插件 **0.1.16** 的当前适配合同，以清单、Worker 和测试为实现依据。
+本文描述插件 **0.1.17** 的当前适配合同，以清单、Worker 和测试为实现依据。
 真实 CLI、宿主和 UI 的历史证据见[验证记录](cursor-acp-validation.md)，未完成项见[验收清单](cursor-acp-checklist.md)。
 文档整理不代表重新通过全部真机验收。
 
