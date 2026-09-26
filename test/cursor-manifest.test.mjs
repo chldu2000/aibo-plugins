@@ -129,7 +129,9 @@ test('every Cursor feature pins a supported host schema and never claims an unim
       catch {return false;}
     }), `${name} must match a host-negotiable contract`);
   }
-  assert.equal(operations.some(op=>op.capability.id==='aibo.session.tool.respond'),false, 'Cursor ACP does not implement the Core tool gateway');
+  assert.equal(operations.some(op=>op.capability.id==='aibo.session.tool.respond'),true, 'Cursor routes host history replies through the standard tool response control');
+  assert.deepEqual(manifest.contributions[0].hostTools,['aibo.host-tools/v1']);
+  assert.equal(manifest.contributions[0].executionPolicy,'agent-managed');
   for(const name of ['session.tree','session.timeline','session.snapshot','session.fork','compaction.run']) {
     assert.equal(CAPABILITIES.includes(name),false);
     assert.equal(operations.some(op=>op.capability.id===prefix+name),false);

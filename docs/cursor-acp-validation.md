@@ -118,3 +118,29 @@ showSlashMenu 要求 selectedAgent 非空。此前函数级目录检查未覆盖
 - 缺失模型或参数的 set 请求仍由 provider 拒绝；测试确认错误请求不会阻断后续合法选择。
 - `pnpm run verify` 通过，生成可安装 Cursor 0.1.11 包。新版本需要重新安装并创建新会话；已有会话仍绑定原安装版本。
 - Cursor 未实现 Core 工具代理或得到宿主原生执行授权，宿主权限模式仍为 Ask/read-only。未声明树、分支时间线、快照、fork、压缩或目标能力。
+
+
+## 2026-09-27 — Cursor 0.1.18 宿主历史工具
+
+基线：宿主 c8d91a6、host SDK 0.1.1；Cursor 插件 0.1.18；
+CLI 2026.09.18-9a7762b、Node 24.18.0、macOS arm64。工作区为探针临时目录，
+工具只返回合成历史，不修改用户 MCP 配置。运行命令：
+
+```sh
+pnpm run verify
+cd ../aibo
+node probes/host-tools-native.mjs cursor
+```
+
+真实 Ask 配置完成 MCP 发现、aibo_read_session 调用、结果进入模型答复；关闭 Worker 和
+原生进程后，load 同一会话，再次调用及答复通过。实际发现发生在 prompt 阶段；
+原生审批通知没有完整工具身份，但同 ID 的 tool_call_update 提供结构化
+rawInput.providerIdentifier（server 名）、toolName 和 args。实现只按该结构化关联
+放行私有宿主只读工具的 allow_once，其他请求保留原权限规则。
+
+恢复保留公开 server 标识，以避免原生历史引用旧 MCP 名称；随机端口和私有凭证重新生成，
+不写入 recovery。单测覆盖跨会话、伪造标题、不同 server、重复/迟到审批、永久许可拒绝；
+打包 smoke 使用真实 MCP stdio 客户端检查目录、调用和恢复标识。
+
+宿主 Rust 集成测试使用不同插件身份，覆盖数据库读取授权和 agent-managed 下 Core 文件工具拒绝。
+该证据不等于完整桌面点击验收；本次未重做桌面 UI、其他平台、订阅模型矩阵或实际用户历史查询。

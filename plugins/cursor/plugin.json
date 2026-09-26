@@ -1,10 +1,10 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
-  "hostSdk": { "min": "0.1.0", "maxExclusive": "0.2.0" },
+  "hostSdk": { "min": "0.1.1", "maxExclusive": "0.2.0" },
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
   "platforms": ["darwin-arm64"],
   "protocols": { "runtime": { "min": "2.1", "max": "2.1" } },
@@ -88,6 +88,7 @@
           }
         ]
       },
+      "hostTools": ["aibo.host-tools/v1"],
       "operations": [
         {
           "id": "dev.aibo.cursor.operation.command-list",
@@ -463,6 +464,69 @@
           "permissions": ["workspace.read"],
           "timeoutMs": 120000,
           "idempotent": false
+        },
+        {
+          "id": "dev.aibo.cursor.operation.host-tool-response",
+          "capability": {
+            "id": "aibo.session.tool.respond",
+            "version": "1.0.0"
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 30000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "requestId"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "result": {},
+              "error": {
+                "type": "string"
+              }
+            },
+            "oneOf": [
+              {
+                "required": [
+                  "result"
+                ],
+                "not": {
+                  "required": [
+                    "error"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "error"
+                ],
+                "not": {
+                  "required": [
+                    "result"
+                  ]
+                }
+              }
+            ]
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "resolved"
+            ],
+            "properties": {
+              "resolved": {
+                "const": true
+              }
+            }
+          },
+          "idempotent": true
         }
       ]
     }

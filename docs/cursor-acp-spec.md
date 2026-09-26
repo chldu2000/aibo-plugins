@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-本文描述插件 **0.1.17** 的当前适配合同，以清单、Worker 和测试为实现依据。
+本文描述插件 **0.1.18** 的当前适配合同，以清单、Worker 和测试为实现依据。
 真实 CLI、宿主和 UI 的历史证据见[验证记录](cursor-acp-validation.md)，未完成项见[验收清单](cursor-acp-checklist.md)。
 文档整理不代表重新通过全部真机验收。
 
@@ -190,3 +190,20 @@ workspaceId/workspacePath、protocolVersion、modeId、hasPrompt，以及可选 
 诊断区分依赖、认证、协议、profile、恢复、busy、陈旧交互、超限和崩溃；记录脱敏阶段、版本及结果。
 真实证据记录插件/CLI/Node/宿主版本、OS/架构、profile、命令及未覆盖项。
 安装成功、原生回合成功、合同探针通过与完整 UI 验收是不同结论，不能互相替代。
+
+## 11. 宿主工具目录与只读 MCP
+
+0.1.18 要求 host SDK 0.1.1，通过 contribution 的 `hostTools: ["aibo.host-tools/v1"]` 和
+标准 `aibo.session.tool.respond` 声明接入。[宿主工具合同](../../aibo/docs/session-history-tool-design.md)
+统一维护目录、授权与分页。Worker 使用公共 SDK 通道，MCP server 配置映射为 ACP
+`session/new` / `session/load` 的 `mcpServers`，不引入数据库或工具名分支。
+
+原生 open 接受配置后声明 host-tools；真实 CLI 在首个 prompt 才可能进行工具发现，
+不能在 open 等待 tools/list。关闭进程及恢复重建 MCP bridge；保留 recovery 中的公开 hostMcpServerName 以匹配原生工具历史，
+每次连接重新生成地址和凭证，调用必须仍绑定当前 invocation。
+
+原生只读 MCP 仍可能请求审批。插件仅对当前 session/turn 的 tool_call ID，以及已收到的
+结构化 rawInput.providerIdentifier、rawInput.toolName 精确匹配随机私有 server 和宿主只读目录时
+返回 allow_once；不用标题/描述推断工具身份。完成、重复、跨会话、缺失结构化元数据及
+其他 server 请求不走该路径。宿主仍再次校验引用归属和信任；永久允许不会被自动选中。
+其他原生工具保留 Ask/Plan 拒绝、Agent 用户审批的行为，executionPolicy 仍为 agent-managed。

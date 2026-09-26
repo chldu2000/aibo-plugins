@@ -1,11 +1,11 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.1.17**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.1.18**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
 
-Release 0.1.17 consolidates model-response recovery generation and native option normalization.
-It preserves the Runtime 2.1 contracts and host requirements. Install it as a new release;
+Release 0.1.18 adds the generic host-tool catalog through a private MCP stdio bridge.
+It requires host SDK 0.1.1 and the `aibo.host-tools/v1` host contract. Install it as a new release;
 existing sessions retain their pinned installation.
 
 ## Requirements and installation
@@ -14,8 +14,8 @@ existing sessions retain their pinned installation.
 - The manifest currently declares macOS arm64. Model/parameter integration was checked against CLI
   `2026.09.15-d2fe57e`; skill description markers against `2026.09.18-9a7762b`. These are compatibility
   baselines for those features, not proof that every CLI version or model works.
-- An Aibo build with host SDK `>=0.1.0 <0.2.0`, the shared optional-session-feature contracts,
-  provider `sessionControls`, `executionPolicy: "agent-managed"` (migration 0047), and the `image.input` attachment contract.
+- An Aibo build with host SDK `>=0.1.1 <0.2.0`, the shared optional-session-feature contracts,
+  provider `sessionControls`, `executionPolicy: "agent-managed"` (migration 0047), and the `image.input` attachment contract, and `aibo.host-tools/v1`.
   The SDK range alone does not prove that the build contains these host features.
 
 From the repository root, run `pnpm run verify`, then install and enable the emitted `cursor` directory
@@ -30,7 +30,9 @@ Debug is absent because the CLI interface used by this adapter does not offer it
 
 - **Agent:** Cursor manages filesystem, command, network and MCP permissions. Aibo admits the top-level
   write turn in a trusted workspace and forwards native approvals, using `allow_once` or `reject_once`.
-- **Ask / Plan:** Cursor's native modes provide read-only behavior; the plugin rejects tool permission requests.
+- **Ask / Plan:** Cursor's native modes provide read-only behavior. Only a structured, current-turn tool call
+  matching this process's private host MCP server and a declared read-only tool receives `allow_once`.
+  Other tool permission requests remain rejected. Display titles never grant permission.
 - These are native behavior contracts. Aibo does not inject Cursor permission rules, intercept every native
   tool call, or provide an OS sandbox, workspace-only writes or blocked network. Cursor user/project rules remain
   effective; already-allowed operations may not generate a prompt. Native permissions grant no Aibo Core tool access.
@@ -99,3 +101,17 @@ The provider icon uses `General Logos/Cube/SVG/CUBE_2D_DARK.svg` from the
 [Cursor brand assets](https://cursor.com/brand), uniformly scaled to 22 units high and centered in the host's
 24 × 24 viewBox. The host supplies theme color. Cursor and its logo belong to Anysphere, Inc.;
 the mark identifies this integration and is not covered by this repository's code license.
+
+## Referenced conversation history
+
+The plugin consumes the host catalog without hard-coding history tool names or database queries.
+The host supplies `aibo_read_session` for references actually accepted in the current turn; it checks
+workspace trust and reference ownership on every page. Concatenate JSONL `content` fragments until
+`complete` is true. Limits and persisted-history scope are defined by the
+[host tool contract](../../../aibo/docs/session-history-tool-design.md).
+
+A separate, randomly named MCP server is passed to each ACP session. Credentials remain in the
+stdio child's environment and are recreated after restart; they are not saved in recovery.
+Cursor may discover MCP tools lazily on the first prompt, so open does not wait for `tools/list`.
+This does not configure global MCP servers or auto-approve unrelated tools. Host history reads do
+not enable Aibo Core filesystem/command tools. Old releases without the catalog continue normally.

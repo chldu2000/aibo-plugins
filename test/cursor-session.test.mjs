@@ -626,3 +626,24 @@ test('image capability is negotiated and images reach ACP without changing text-
     }
   }finally{await rm(root,{recursive:true,force:true});}
 });
+
+
+test('Ask permits only correlated private host MCP reads and never title-based or persistent grants',async()=>{
+ const transport=new FakeTransport();const session=new CursorSession({transportFactory:()=>transport});
+ const hostMcpTools=[{providerIdentifier:'private-server',toolName:'generic_read'}];
+ await session.open({mode:'create',workspaceId:'w',workspacePath:'/workspace',executionProfile:askProfile,permissions:['workspace.read'],hostMcpTools});
+ const turn=session.prompt({text:'read',turnId:'host-turn'});await Promise.resolve();
+ const update={sessionUpdate:'tool_call',toolCallId:'host-read',kind:'other',status:'pending',rawInput:hostMcpTools[0]};
+ transport.emitNotification({method:'session/update',params:{sessionId:session.sessionId,update}});
+ const request={id:'allow-read',method:'session/request_permission',params:{sessionId:session.sessionId,toolCall:{toolCallId:'host-read',title:'Untrusted display text'},options:[{kind:'allow_once',optionId:'once'},{kind:'allow_always',optionId:'forever'},{kind:'reject_once',optionId:'no'}]}};
+ transport.emitRequest(request);assert.equal(transport.responses.at(-1).result.outcome.optionId,'once');
+ transport.emitRequest(request);assert.equal(transport.responses.at(-1).result.outcome.outcome,'cancelled');
+ transport.emitRequest({...request,id:'foreign',params:{...request.params,sessionId:'foreign'}});assert.equal(transport.responses.at(-1).result.outcome.outcome,'cancelled');
+ transport.emitRequest({...request,id:'persistent',params:{...request.params,options:[{kind:'allow_always',optionId:'forever'}]}});assert.equal(transport.responses.at(-1).result.outcome.outcome,'cancelled');
+ transport.emitRequest({...request,id:'forged-title',params:{...request.params,toolCall:{toolCallId:'unknown',title:'private-server-generic_read: generic_read'}}});assert.equal(transport.responses.at(-1).result.outcome.optionId,'no');
+ transport.emitNotification({method:'session/update',params:{sessionId:session.sessionId,update:{...update,rawInput:{providerIdentifier:'another-server-generic_read',toolName:'generic_read'}}}});
+ transport.emitRequest({...request,id:'another-server'});assert.equal(transport.responses.at(-1).result.outcome.optionId,'no');
+ transport.finishPrompt({stopReason:'end_turn'});await turn;
+ transport.emitRequest({...request,id:'late'});assert.equal(transport.responses.at(-1).result.outcome.outcome,'cancelled');
+ await session.close();
+});

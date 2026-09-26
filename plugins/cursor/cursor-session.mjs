@@ -79,6 +79,7 @@ export class CursorSession {
     this.commandWaiters = new Set();
     this.pendingInteractions = new Map();
     this.tools = new Map();
+    this.hostPermissionReplies = new Set();
     this.completedTools = new Set();
     this.subagents = new Map();
     this.phase = 'stopped';
@@ -87,7 +88,7 @@ export class CursorSession {
     this.parameterized = false;
   }
 
-  async open({ mode, workspaceId, workspacePath, executionProfile, recovery, permissions }) {
+  async open({ mode, workspaceId, workspacePath, executionProfile, recovery, permissions, mcpServers = [], hostMcpTools = [] }) {
     if (this.phase === 'failed' || this.transport?.closed) await this.close();
     if (this.phase !== 'stopped') {
       if (this.sessionId && this.workspaceId === workspaceId) return this.snapshot();
@@ -99,6 +100,8 @@ export class CursorSession {
     this.workspaceId = workspaceId;
     this.workspacePath = workspacePath;
     this.profile = policy.profile;
+    this.hostMcpTools = hostMcpTools;
+    this.hostMcpServerName = mcpServers[0]?.name;
     this.modeId = policy.mode;
     // Cursor does not persist a newly-created session until it receives a
     // prompt. An explicitly empty binding can be recreated after a mode change;
@@ -125,10 +128,10 @@ export class CursorSession {
       let result;
       if (loadNative) {
         if (this.agentCapabilities.loadSession !== true) throw pluginError('unsupported', 'This Cursor CLI cannot restore ACP sessions');
-        result = await transport.request('session/load', { sessionId: restored.nativeSessionId, cwd: workspacePath, mcpServers: [] }, 90_000);
+        result = await transport.request('session/load', { sessionId: restored.nativeSessionId, cwd: workspacePath, mcpServers }, 90_000);
         this.sessionId = restored.nativeSessionId;
       } else {
-        result = await transport.request('session/new', { cwd: workspacePath, mcpServers: [] }, 90_000);
+        result = await transport.request('session/new', { cwd: workspacePath, mcpServers }, 90_000);
         if (typeof result?.sessionId !== 'string' || !result.sessionId) throw pluginError('invalid_output', 'Cursor did not return a session ID');
         this.sessionId = result.sessionId;
       }
@@ -162,6 +165,7 @@ export class CursorSession {
     this.messageItemId = null;
     this.reasoningItemId = null;
     this.tools.clear();
+    this.hostPermissionReplies.clear();
     this.completedTools.clear();
     this.subagents.clear();
     this.#event('turn.started', {});
@@ -252,7 +256,7 @@ export class CursorSession {
     return { resolved: true, recovery: this.recovery(), capabilities: this.capabilities() };
   }
 
-  capabilities() { const capabilities = [...CAPABILITIES, ...(this.agentCapabilities?.promptCapabilities?.image === true ? ['image.input'] : [])]; return this.modelConfig ? [...capabilities, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : capabilities; }
+  capabilities() { const capabilities = [...CAPABILITIES, ...(this.hostToolsRegistered ? ['host-tools'] : []), ...(this.agentCapabilities?.promptCapabilities?.image === true ? ['image.input'] : [])]; return this.modelConfig ? [...capabilities, 'model.select', ...(this.parameterized ? ['model.reasoning', 'model.context-window'] : [])] : capabilities; }
 
   async commands() {
     if (!this.sessionId || !this.transport || this.transport.closed) throw pluginError('invalid_session', 'Cursor command directory requires an open session');
@@ -375,7 +379,7 @@ export class CursorSession {
 
   snapshot() { return { nativeSessionId: this.sessionId, recovery: this.recovery(), capabilities: this.capabilities() }; }
   recovery(parameters = this.parameters()) {
-    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, hasPrompt: this.hasPrompt, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: parameters.current, contextWindow: parameters.context?.currentValue ?? null } : {}) } };
+    return { schema: RECOVERY_SCHEMA, version: 1, data: { nativeSessionId: this.sessionId, workspaceId: this.workspaceId, workspacePath: this.workspacePath, protocolVersion: 1, modeId: this.modeId, hostMcpServerName: this.hostMcpServerName, hasPrompt: this.hasPrompt, ...(this.modelConfig ? { modelId: this.modelConfig.current, reasoningEffort: parameters.current, contextWindow: parameters.context?.currentValue ?? null } : {}) } };
   }
 
   async close() {
@@ -393,6 +397,8 @@ export class CursorSession {
     for (const done of this.commandWaiters) done();
     this.pendingInteractions.clear();
     this.phase = 'stopped';
+    this.hostMcpTools=[];
+    this.hostPermissionReplies.clear();
     this.sessionId = null;
     this.modelConfig = null;
     this.configOptions = [];
@@ -438,6 +444,21 @@ export class CursorSession {
     const requestId = `cursor-${typeof message.id === 'number' ? 'n' : 's'}-${String(message.id)}`;
     if (message.method === 'session/request_permission') {
       const options = Array.isArray(params.options) ? params.options : [];
+      // Only native structured metadata correlated with this turn can identify
+      // the private, randomly named host bridge. Display titles grant nothing.
+      const toolCallId=params.toolCall?.toolCallId;
+      const tool=this.tools.get(toolCallId);
+      const raw=tool?.rawInput;
+      const hostRead=this.phase==='prompting' && params.sessionId===this.sessionId
+        && tool?.kind==='other' && !this.completedTools.has(toolCallId)
+        && this.hostMcpTools?.some(allowed=>raw?.providerIdentifier===allowed.providerIdentifier && raw?.toolName===allowed.toolName);
+      if(hostRead){
+        const allowed=options.find(option=>option.kind==='allow_once');
+        const fresh=!this.hostPermissionReplies.has(requestId);
+        this.hostPermissionReplies.add(requestId);
+        this.transport.respond(message.id,allowed&&fresh?{outcome:{outcome:'selected',optionId:allowed.optionId}}:{outcome:{outcome:'cancelled'}});
+        return true;
+      }
       if (this.modeId !== 'agent' || this.profile.approvalReviewer !== 'user') {
         const rejected = options.find(candidate => candidate.kind === 'reject_once');
         this.transport.respond(message.id, rejected ? { outcome: { outcome: 'selected', optionId: rejected.optionId } } : { outcome: { outcome: 'cancelled' } });

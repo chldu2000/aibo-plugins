@@ -18,7 +18,7 @@ const ajv = new Ajv({strict:false});
 const features = JSON.parse(await readFile(path.join(aibo,'contracts/session-features.v1.json'),'utf8'));
 
 const child = spawn(process.execPath,['--import',pathToFileURL(path.join(aibo,'packages/plugin-host/register.mjs')).href,path.join(packagePath,'worker.mjs')],{
-  cwd:packagePath,env:{...process.env,PATH:`${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`},stdio:['pipe','pipe','inherit'],
+  cwd:packagePath,env:{...process.env,AIBO_TEST_MCP_CLIENT:pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href,AIBO_TEST_MCP_TRANSPORT:pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/stdio.js')).href,PATH:`${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`},stdio:['pipe','pipe','inherit'],
 });
 let nextId=0;
 const pending=new Map();
@@ -28,7 +28,14 @@ const send=(method,params)=>new Promise((resolve,reject)=>{
 });
 createInterface({input:child.stdout,crlfDelay:Infinity}).on('line',line=>{
   const message=JSON.parse(line);
-  if(message.method==='capability.event'){events.push(message.params.event);return;}
+  if(message.method==='capability.event'){
+    const event=message.params.event;events.push(event);
+    if(event.type==='workspace.requested'){
+      assert.equal(event.payload.tool,'aibo_read_session');
+      const operation=manifest.contributions[0].operations.find(op=>op.capability.id==='aibo.session.tool.respond');
+      void send('capability.control',{instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,invocationId:message.params.invocationId,capability:operation.capability.id,contractVersion:'1.0.0',operationId:operation.id,input:{requestId:event.payload.requestId,result:{source:'persisted-core',sessionId:'source',referenceCapturedAt:'now',readSnapshotId:'snapshot',readCapturedAt:'now',throughMessageId:null,historyScope:'fixture',format:'jsonl',content:'AIBO_HISTORY_MCP_OK',offset:0,nextCursor:null,complete:true}}});
+    }return;
+  }
   const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);
   message.error?waiter.reject(new Error(message.error.message)):waiter.resolve(message.result);
 });
@@ -36,7 +43,8 @@ const manifest=JSON.parse(await readFile(path.join(packagePath,'plugin.json'),'u
 const identity={protocol:'2.1',instanceId:'smoke-instance',generationId:'smoke-generation',installationId:'smoke-installation',pluginId:manifest.pluginId,pluginVersion:manifest.version,contributionId:'dev.aibo.cursor.agent',privateData:{path:packagePath,formatVersion:1}};
 const initialized=await send('capability.initialize',identity);
 if(initialized.protocol!=='2.1')throw new Error('Cursor package did not negotiate Runtime 2.1');
-const context={turnId:null,workspaceId:'smoke-workspace',workspacePath:packagePath,originalCaller:{kind:'window',id:'smoke-window'},permissions:['workspace.read'],callChain:[]};
+const hostTools=JSON.parse(await readFile(path.join(aibo,'contracts/host-tools.v1.json'),'utf8'));
+const context={hostTools,turnId:null,workspaceId:'smoke-workspace',workspacePath:packagePath,originalCaller:{kind:'window',id:'smoke-window'},permissions:['workspace.read'],callChain:[]};
 const invoke=async(invocationId,capability,operationId,input,turnId=null)=>{
   const result=await send('capability.invoke',{invocationId,instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,capability,contractVersion:'1.0.0',operationId,scope:{kind:'session',id:'smoke-session'},deadlineUnixMs:Date.now()+30_000,context:{...context,turnId},input});
   const operation=manifest.contributions[0].operations.find(op=>op.capability.id===capability);
@@ -47,6 +55,9 @@ const invoke=async(invocationId,capability,operationId,input,turnId=null)=>{
 };
 const profile={schema:'aibo.execution-profile/v1',interactionMode:'ask',approvalPolicy:'never',approvalReviewer:'none',filesystemPolicy:'read-only',commandPolicy:'disabled',networkPolicy:'agent-managed',model:null,reasoningEffort:null};
 const opened=await invoke('open','aibo.session.open','dev.aibo.cursor.session.open',{mode:'create',executionProfile:profile,recovery:null});
+assert.ok(opened.output.capabilities.includes('host-tools'));
+await invoke('history','aibo.session.turn','dev.aibo.cursor.session.turn',{text:'host history fixture'},'history-turn');
+assert.ok(events.some(event=>event.type==='message.completed'&&event.payload.text.includes('AIBO_HISTORY_MCP_OK')));
 if(opened.output.nativeSessionId!=='fake-cursor-session')throw new Error('Cursor package did not open the fake ACP session');
 if (!opened.output.capabilities.includes('model.select')) throw new Error('Cursor package did not negotiate model selection');
 if (!opened.output.capabilities.includes('command.list')) throw new Error('Cursor package did not negotiate command directory');
@@ -87,6 +98,8 @@ for (const control of manifest.contributions[0].sessionControls) {
   await invoke(`close-${control.id}`, 'aibo.session.close', 'dev.aibo.cursor.session.close', {});
   const opened = await invoke(`open-${control.id}`, 'aibo.session.open', 'dev.aibo.cursor.session.open', {mode:'resume',executionProfile:{...profile,...control.profile},recovery});
   assert.equal(opened.output.recovery.data.modeId, control.id);
+  assert.ok(opened.output.capabilities.includes('host-tools'));
+  assert.equal(opened.output.recovery.data.hostMcpServerName,recovery.data.hostMcpServerName);
   const write = control.id === 'agent';
   const capability = write ? 'aibo.session.turn.write' : 'aibo.session.turn';
   const operation = manifest.contributions[0].operations.find(op => op.capability.id === capability);

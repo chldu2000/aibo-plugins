@@ -18,7 +18,7 @@ export async function buildExternalPlugin() {
   for(const name of ['package.json','README.md']) await copyFile(hostPath('packages/plugin-protocol',name),path.join(protocol,name));
   execFileSync(process.execPath,[tsc,'-p',hostPath('packages/plugin-protocol/tsconfig.json'),'--outDir',path.join(protocol,'dist')]);
   const protocolTar=path.join(protocol,pack(protocol).filename);
-  for(const name of ['package.json','README.md','runtime.mjs','stdio.mjs','runtime.d.ts','stdio.d.ts']) await copyFile(hostPath('packages/capability-runtime',name),path.join(sdk,name));
+  for(const name of ['package.json','README.md','runtime.mjs','stdio.mjs','runtime.d.ts','stdio.d.ts','host-tools.mjs','host-tools.d.ts','host-tools-mcp.mjs','host-tools-mcp.d.ts']) await copyFile(hostPath('packages/capability-runtime',name),path.join(sdk,name));
   const sdkTar=path.join(sdk,pack(sdk).filename);
   async function buildCapabilityPackage(name,{compile=false,entry}) {
     const source=path.join(project,'plugins',name),consumer=path.join(root,`${name}-consumer`);

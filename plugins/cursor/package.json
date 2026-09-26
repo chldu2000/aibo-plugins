@@ -1,6 +1,6 @@
 {
   "name": "aibo-cursor-agent",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "type": "module",
   "files": [
@@ -9,7 +9,7 @@
     "*.mjs"
   ],
   "devDependencies": {
-    "@aibo/capability-runtime": "0.1.0",
+    "@aibo/capability-runtime": "0.1.1",
     "@aibo/plugin-protocol": "0.1.0"
   }
 }
