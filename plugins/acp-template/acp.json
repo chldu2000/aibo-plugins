@@ -1,0 +1,7 @@
+{
+  "schema": "aibo.acp-agent/v1",
+  "label": "My Agent",
+  "command": "my-acp-agent",
+  "args": ["--acp"],
+  "modes": { "ask": "ask", "edit": "code" }
+}

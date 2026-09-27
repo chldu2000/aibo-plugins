@@ -1,8 +1,12 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.2.1**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.2.2**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
+
+Release 0.2.2 runs on the host SDK's generic ACP Worker (`serveAcpAgent` from `@aibo/acp-adapter/worker`,
+host SDK 0.1.3) with `cursorExtension`; routing, host tools and lifecycle are unchanged, now shared with
+configuration-only ACP plugins. It requires host SDK 0.1.3.
 
 Release 0.2.1 explicitly declares Cursor question support after the generic adapter stopped assuming
 that every ACP agent implements vendor questions. Resume is advertised only when the native agent

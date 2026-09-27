@@ -1,12 +1,13 @@
 {
-  "name": "aibo-cursor-agent",
-  "version": "0.2.2",
+  "name": "aibo-acp-template",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "files": [
     "plugin.json",
-    "README.md",
-    "*.mjs"
+    "acp.json",
+    "worker.mjs",
+    "README.md"
   ],
   "devDependencies": {
     "@aibo/acp-adapter": "0.1.1",

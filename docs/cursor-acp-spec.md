@@ -13,7 +13,7 @@
 | 文件 | 职责 |
 | --- | --- |
 | `plugins/cursor/plugin.json` | provider、sessionControls、设置、操作 schema 与运行依赖 |
-| `plugins/cursor/worker.mjs` | Runtime 2.1、invoke/control、可信调用上下文、响应封套 |
+| `plugins/cursor/worker.mjs` | 调用宿主 SDK 的 `serveAcpAgent` 并传入 `cursorExtension`；Runtime 2.1、invoke/control、可信调用上下文、响应封套与宿主工具接线由 `@aibo/acp-adapter/worker` 提供（0.2.2 起） |
 | `plugins/cursor/cursor-session.mjs` | Cursor 扩展：`cursor_login` 认证、模式映射、recovery schema、`cursor/*` 请求与通知、命令和参数化模型的判定 |
 | 宿主 SDK `@aibo/acp-adapter/session` | 通用握手、new/load、模式与模型确认、回合、事件、审批和 recovery |
 | 宿主 SDK `@aibo/acp-adapter/transport` | 子进程、NDJSON、双向 RPC、背压、超时与释放 |
