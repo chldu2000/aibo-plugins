@@ -42,7 +42,13 @@ test(`${name} acp.json configures the generic worker and every declared mode`, a
   assert.equal(extension.writableMode, config.modes.edit);
   for (const control of manifest.contributions[0].sessionControls) {
     const { mode } = extension.validateExecutionProfile({ schema: 'aibo.execution-profile/v1', ...control.profile }, ['workspace.read', 'workspace.write']);
-    assert.equal(mode, config.modes[control.profile.interactionMode], control.id);
+    // Auto is edit reviewed by the agent's own classifier.
+    assert.equal(mode, config.modes[control.profile.approvalReviewer === 'auto-review' ? 'auto' : control.profile.interactionMode], control.id);
+  }
+  const targets = manifest.contributions[0].sessionControls.flatMap(control => control.transitions ?? []);
+  for (const choice of extension.approvalChoices.filter(choice => choice.sessionControl)) {
+    assert.ok(targets.includes(choice.sessionControl), `${choice.optionId} switches only to a declared transition target`);
+    assert.ok(extension.writableModes.includes(choice.mode), `${choice.optionId} switches to a writable mode`);
   }
   assert.throws(() => acpAgentConfig({ ...config, command: 'sh' }, manifest), /executableDependencies/);
 });

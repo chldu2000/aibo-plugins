@@ -2,7 +2,30 @@
   "schema": "aibo.acp-agent/v1",
   "label": "Claude Code",
   "command": "claude-agent-acp",
-  "modes": { "plan": "plan", "edit": "default" },
+  "modes": {
+    "plan": "plan",
+    "edit": "default",
+    "auto": "auto"
+  },
   "persistsEmptySessions": false,
-  "requestPrefix": "claude"
+  "requestPrefix": "claude",
+  "approvalOptions": [
+    {
+      "optionId": "exit-plan-auto",
+      "toolKind": "switch_mode",
+      "label": "批准计划并使用 Auto",
+      "sessionControl": "auto"
+    },
+    {
+      "optionId": "exit-plan-default",
+      "toolKind": "switch_mode",
+      "label": "批准计划，手动审批编辑",
+      "sessionControl": "manual"
+    },
+    {
+      "optionId": "reject",
+      "toolKind": "switch_mode",
+      "label": "继续规划"
+    }
+  ]
 }

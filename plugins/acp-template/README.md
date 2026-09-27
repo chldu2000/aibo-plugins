@@ -15,6 +15,12 @@ No code is needed: the host SDK's `@aibo/acp-adapter/worker` reads `plugin.json`
 3. Adjust `sessionControls` to the modes you mapped. The provider uses `agent-managed` execution:
    the agent owns file, command and network permissions and Aibo forwards its approval requests.
 
+With host SDK 0.1.4, an agent that switches modes from an approval (for example approving a plan) can declare
+it: map an `auto` write mode if the agent has one, add `transitions` to the source control, switch
+`approval.respond` to its `{ requestId, optionId }` input, and list the native options in `acp.json`
+`approvalOptions` with a `sessionControl`. See `plugins/claude-code` and the
+[adapter documentation](../../../aibo/packages/acp-adapter/README.md).
+
 Capabilities follow the agent's `initialize` response: resume only with `loadSession`, image input
 only with image prompts, model and parameter selection only when the agent returns config options.
 To offer Aibo's host tools, add `"hostTools": ["aibo.host-tools/v1"]` and the `aibo.session.tool.respond`

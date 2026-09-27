@@ -1,6 +1,6 @@
 // Real Claude Code through the configuration-only plugin: plugin.json + acp.json on the host SDK worker.
 // Installs @agentclientprotocol/claude-agent-acp into a temporary prefix unless CLAUDE_AGENT_ACP_BIN names
-// a directory containing `claude-agent-acp`. Uses the local Claude Code login and sends two short prompts.
+// a directory containing `claude-agent-acp`. Uses the local Claude Code login and sends three short prompts.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -83,7 +83,8 @@ try {
   first.listeners.add(entry => {
     if (entry.event.type !== 'approval.requested') return;
     approvals.push(entry.event.payload);
-    void first.control(entry.invocationId, feature('approval.respond'), { requestId: entry.event.payload.requestId, decision: 'accept' });
+    const allow = entry.event.payload.options.find(option => option.kind === 'allow' && !option.effects);
+    void first.control(entry.invocationId, feature('approval.respond'), { requestId: entry.event.payload.requestId, optionId: allow.id });
   });
   const turn = await first.invoke('aibo.session.turn.write', { text: 'Create a file named aibo-probe.txt in the current directory containing exactly AIBO_FILE_OK and nothing else. Do not do anything else.' }, 'edit-turn', ['workspace.read', 'workspace.write']);
   assert.equal(turn.status, 'completed');
@@ -92,6 +93,31 @@ try {
   assert.ok(approvals.every(approval => approval.requestId.startsWith('claude-')));
   result.approvals = approvals.map(approval => ({ kind: approval.kind, command: approval.command }));
   result.checks.push(`manual write turn asked for approval ${approvals.length} time(s); the file was written after acceptance`);
+  await first.invoke('aibo.session.close', {});
+
+  // Plan → approve → implement in one turn: the plan approval offers the declared transitions, and
+  // choosing Manual lets Claude switch modes and ask for its edits in the same turn.
+  await first.invoke('aibo.session.open', { mode: 'create', executionProfile: profile('plan'), recovery: null });
+  const planApprovals = [];
+  first.listeners.clear();
+  first.listeners.add(entry => {
+    if (entry.event.type !== 'approval.requested') return;
+    const payload = entry.event.payload;
+    planApprovals.push(payload);
+    const transition = payload.options.find(option => option.effects?.sessionControl === 'manual');
+    const allow = transition ?? payload.options.find(option => option.kind === 'allow');
+    void first.control(entry.invocationId, feature('approval.respond'), { requestId: payload.requestId, optionId: allow.id });
+  });
+  const implemented = await first.invoke('aibo.session.turn', { text: 'Make a one-line plan to create a file named aibo-plan.txt in the current directory containing exactly AIBO_PLAN_OK, then call ExitPlanMode to ask for approval. Once approved, create the file and do nothing else.' }, 'plan-exit-turn');
+  const exit = planApprovals.find(payload => payload.options.some(option => option.effects));
+  assert.ok(exit, 'Claude asked to leave Plan mode');
+  assert.deepEqual(exit.options.map(option => [option.id, option.label, option.effects?.sessionControl ?? null]).filter(([id]) => id !== 'exit-plan-auto'), [
+    ['exit-plan-default', '批准计划，手动审批编辑', 'manual'], ['reject', '继续规划', null],
+  ], 'only declared transitions and keep-planning are offered');
+  result.planOptions = exit.options.map(option => option.id);
+  assert.equal(implemented.status, 'completed', JSON.stringify(first.events.filter(entry => entry.event.type === 'turn.failed').map(entry => entry.event.payload)));
+  assert.equal((await readFile(path.join(workspacePath, 'aibo-plan.txt'), 'utf8')).trim(), 'AIBO_PLAN_OK');
+  result.checks.push(`plan approval offered ${result.planOptions.join(', ')}; choosing Manual switched modes in the same turn and ${planApprovals.length - 1} edit approval(s) followed`);
   await first.close();
 
   const second = worker(2);
