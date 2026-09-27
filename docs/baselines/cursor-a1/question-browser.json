@@ -1,0 +1,40 @@
+{
+  "ok": true,
+  "baseline": {
+    "hostCommit": "5f5c79b + working-tree capability fix",
+    "hostSdk": "0.1.2",
+    "pluginVersion": "0.2.1",
+    "cli": "2026.09.18-9a7762b",
+    "node": "24.18.0",
+    "os": "macOS 27.0 (26A428)",
+    "arch": "arm64",
+    "pluginCommit": "8f9f13d + working-tree capability/question fix"
+  },
+  "scope": "Chromium fixture through real Cursor extension, host event projection and App question UI. Not native CLI emission evidence.",
+  "checks": [
+    {
+      "kit": "material3",
+      "theme": "light",
+      "status": "passed",
+      "nativeOptionId": "native-orchid"
+    },
+    {
+      "kit": "material3",
+      "theme": "dark",
+      "status": "passed",
+      "nativeOptionId": "native-orchid"
+    },
+    {
+      "kit": "ak-ui",
+      "theme": "light",
+      "status": "passed",
+      "nativeOptionId": "native-orchid"
+    },
+    {
+      "kit": "ak-ui",
+      "theme": "dark",
+      "status": "passed",
+      "nativeOptionId": "native-orchid"
+    }
+  ]
+}

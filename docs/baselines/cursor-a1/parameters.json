@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "evidence": [
+    {
+      "model": "gpt-5.5",
+      "levels": [
+        "None",
+        "Low",
+        "Medium",
+        "High",
+        "Extra High"
+      ],
+      "contexts": [
+        {
+          "id": "272k",
+          "label": "272K"
+        },
+        {
+          "id": "1m",
+          "label": "1M"
+        }
+      ],
+      "switched": true,
+      "resumed": true
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "levels": [
+        "Thinking: Off · Effort: Low",
+        "Thinking: Off · Effort: Medium",
+        "Thinking: Off · Effort: High",
+        "Thinking: Off · Effort: Max",
+        "Thinking: On · Effort: Low",
+        "Thinking: On · Effort: Medium",
+        "Thinking: On · Effort: High",
+        "Thinking: On · Effort: Max"
+      ],
+      "contexts": [
+        {
+          "id": "200k",
+          "label": "200K"
+        },
+        {
+          "id": "1m",
+          "label": "1M"
+        }
+      ],
+      "switched": true,
+      "resumed": true
+    }
+  ],
+  "baseline": {
+    "hostCommit": "5f5c79b + working-tree capability fix",
+    "hostSdk": "0.1.2",
+    "pluginVersion": "0.2.1",
+    "cli": "2026.09.18-9a7762b",
+    "node": "24.18.0",
+    "os": "macOS 27.0 (26A428)",
+    "arch": "arm64"
+  },
+  "scope": "One real Auto response, two model parameter selections and cross-process restores; native selections restored in finally. No desktop UI claims."
+}

@@ -1,8 +1,14 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.2.0**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.2.1**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
+
+Release 0.2.1 explicitly declares Cursor question support after the generic adapter stopped assuming
+that every ACP agent implements vendor questions. Resume is advertised only when the native agent
+confirms load support. It also maps native question prompts to host question text and converts selected
+display labels back to native option IDs, rejecting ambiguous matches. This is a new installation;
+existing sessions retain their pinned release.
 
 Release 0.2.0 moves the generic ACP transport, session mapping, model configuration and image input
 into the host SDK's `@aibo/acp-adapter`; this plugin keeps only Cursor behaviour (authentication,
@@ -19,7 +25,7 @@ the `aibo.host-tools/v1` host contract.
 - The manifest currently declares macOS arm64. Model/parameter integration was checked against CLI
   `2026.09.15-d2fe57e`; skill description markers against `2026.09.18-9a7762b`. These are compatibility
   baselines for those features, not proof that every CLI version or model works.
-- An Aibo build with host SDK `>=0.1.1 <0.2.0`, the shared optional-session-feature contracts,
+- An Aibo build with host SDK `>=0.1.2 <0.2.0`, the shared optional-session-feature contracts,
   provider `sessionControls`, `executionPolicy: "agent-managed"` (migration 0047), and the `image.input` attachment contract, and `aibo.host-tools/v1`.
   The SDK range alone does not prove that the build contains these host features.
 
@@ -83,7 +89,7 @@ The host derives the waiting queue from standard lifecycle contracts; IDs, FIFO,
 handling remain host-owned. Native `queue.steer` is not advertised, so messages during a running turn wait for it to settle.
 Cursor task metadata produces subagent cards, without invented `subagent.message` history.
 Fast/service-tier, goal lifecycle, forks, remote session trees, branch timelines and thread snapshots remain undeclared.
-Opaque recovery data is not `session.snapshot`. Aibo tools are not automatically bridged into Cursor MCP.
+Opaque recovery data is not `session.snapshot`. Only the host-authorized tool catalog is bridged into Cursor MCP.
 
 ## Validation commands
 
@@ -93,10 +99,16 @@ Run these from the repository root in an appropriate local environment:
 - `node scripts/probe-cursor-models.mjs --prompt`: real catalog, model selection, Auto prompt and cross-process recovery.
 - `node scripts/probe-cursor-parameters.mjs`: an Auto model prompt followed by real parameter selection and recovery.
 - `node scripts/probe-cursor-commands.mjs`: native/workspace command directory and a local utility command.
+- `node scripts/probe-cursor-question-browser.mjs`: documented question fixture through the Cursor adapter,
+  host event projection and real App in Chromium, in both kits and themes; no native question emission claim.
+- `node scripts/probe-cursor-ui.mjs`: real App in an isolated macOS WKWebView, system mouse/keyboard
+  menu and send/cancel interactions, pasted image, native questions/approvals when emitted, and app restart.
+  Takes the foreground. Writes `/private/tmp/aibo-cursor-ui-result.json`; `not-observed` is not a pass.
+  Uses the committed 0.1.18 baseline (`d2616e4`) to check pinned old releases.
 - `node scripts/probe-cursor-desktop.mjs --contract-only`: isolated host installation/menu contracts and
   Plan → Agent → Ask recovery without a model prompt; it does not replace visual interaction acceptance.
 
-Native probes use temporary workspaces; the model probe attempts to restore its original selection before closing.
+Native probes use temporary workspaces and attempt to restore changed model/parameter selections before closing.
 Review each script's native requests and cleanup before running it. Consult the repository's
 [checklist](../../docs/cursor-acp-checklist.md) for remaining acceptance work; this README does not claim it all passed.
 

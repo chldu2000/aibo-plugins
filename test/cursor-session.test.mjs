@@ -135,7 +135,9 @@ test('问题响应校验选项，恢复绑定工作区并隔离历史回放', as
   const events=[];
   const session = new CursorSession({transportFactory:()=>transport,emit:event=>events.push(event)});
   const recovery={schema:'dev.aibo.cursor.recovery',version:1,data:{nativeSessionId:'old-session',workspaceId:'w1',workspacePath:'/workspace',protocolVersion:1,modeId:'ask'}};
-  await session.open({mode:'resume',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery,permissions:['workspace.read']});
+  const opened = await session.open({mode:'resume',workspaceId:'w1',workspacePath:'/workspace',executionProfile:askProfile,recovery,permissions:['workspace.read']});
+  assert.ok(opened.capabilities.includes('user-input.respond'), 'Cursor explicitly advertises its question extension');
+  assert.ok(opened.capabilities.includes('session.resume'), 'native load support remains advertised');
   assert.equal(session.sessionId,'old-session');
   assert.ok(transport.requests.some(request=>request.method==='session/load'));
   await assert.rejects(() => session.open({mode:'resume',workspaceId:'w2',workspacePath:'/other',executionProfile:askProfile,recovery,permissions:['workspace.read']}), /already open/);
@@ -646,4 +648,20 @@ test('Ask permits only correlated private host MCP reads and never title-based o
  transport.finishPrompt({stopReason:'end_turn'});await turn;
  transport.emitRequest({...request,id:'late'});assert.equal(transport.responses.at(-1).result.outcome.outcome,'cancelled');
  await session.close();
+});
+
+test('native questions project host question text and map displayed labels back to native option IDs', async () => {
+  const transport = new FakeTransport(), events = [];
+  const session = new CursorSession({ transportFactory: () => transport, emit: event => events.push(event) });
+  await session.open({ mode: 'create', workspaceId: 'w1', workspacePath: '/workspace', executionProfile: askProfile, permissions: ['workspace.read'] });
+  const turn = session.prompt({ text: 'ask me', turnId: 'question-ui' });
+  try {
+    transport.emitRequest({ jsonrpc: '2.0', id: 'q-ui', method: 'cursor/ask_question', params: { questions: [
+      { id: 'tree', prompt: 'Choose a tree', options: [{ id: 'native-o', label: 'ORCHID' }, { id: 'native-m', label: 'MAPLE' }], allowMultiple: false },
+    ] } });
+    const request = events.find(event => event.type === 'user_input.requested');
+    assert.equal(request.payload.questions[0].question, 'Choose a tree', 'host projection requires question, not the vendor prompt key');
+    session.respondUserInput(request.payload.requestId, { tree: ['ORCHID'] });
+    assert.deepEqual(transport.responses.at(-1).result.outcome.answers, [{ questionId: 'tree', selectedOptionIds: ['native-o'] }]);
+  } finally { transport.finishPrompt({ stopReason: 'end_turn' }); await turn; await session.close(); }
 });

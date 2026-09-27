@@ -1,0 +1,98 @@
+{
+  "ok": true,
+  "acceptanceComplete": false,
+  "skippedChecks": [
+    "theme menus and mode switching (separate run)"
+  ],
+  "platform": "darwin",
+  "architecture": "arm64",
+  "interaction": "real App and Tauri IPC in WKWebView; CGEvent clicks/keys; DOM input values seeded by probe",
+  "baseline": {
+    "hostCommit": "5f5c79b + working-tree capability fix",
+    "hostSdk": "0.1.2",
+    "pluginVersion": "0.2.1",
+    "cli": "2026.09.18-9a7762b",
+    "node": "24.18.0",
+    "os": "macOS 27.0 (26A428)",
+    "arch": "arm64",
+    "pluginCommit": "8f9f13d + working-tree capability/question fix"
+  },
+  "packageSha256": {
+    "plugin.json": "cd74428a1cad304ab4e95b82a072c688d89610997c2f7974d8a6a686f5f4e2cb",
+    "cursor-session.mjs": "a6d99181501c4c0d6dc75297419202696db093a5f7cdf3e60b9714ac7002e8df",
+    "worker.mjs": "9b289e698ee65b5aa899df9a0eabff6de135836a68bee220de12378ccbeaa971"
+  },
+  "checks": [
+    {
+      "phase": "initial",
+      "name": "client-started"
+    },
+    {
+      "phase": "initial",
+      "name": "installation-and-pinned-releases",
+      "oldVersion": "0.1.18",
+      "newVersion": "0.2.1"
+    },
+    {
+      "phase": "initial",
+      "name": "send-and-timeline",
+      "response": "AIBO_CURSOR_UI_OK"
+    },
+    {
+      "phase": "initial",
+      "name": "image-paste-preview-and-understanding",
+      "response": "RED"
+    },
+    {
+      "phase": "initial",
+      "name": "cancel-through-ui",
+      "state": "interrupted"
+    },
+    {
+      "phase": "initial",
+      "name": "question",
+      "status": "not-observed",
+      "observed": [],
+      "response": "正在查找 AskQuestion 工具，以便向你提问。当前环境没有可用的 AskQuestion 工具，因此直接在这里请你选择：\n\n请在以下两项中选择一项：\n- **ORCHID**\n- **MAPLE**\n\n请回复你的选择；我不会代你作答，也不会在此阶段制定计划或修改任何文件。"
+    },
+    {
+      "phase": "initial",
+      "name": "interaction-response",
+      "kind": "approval"
+    },
+    {
+      "phase": "initial",
+      "name": "interaction-response",
+      "kind": "approval"
+    },
+    {
+      "phase": "initial",
+      "name": "approval",
+      "status": "passed",
+      "observed": [
+        "approval",
+        "approval"
+      ],
+      "response": "正在工作区执行该命令。命令已成功执行（exit code 0）。\n\n已在当前工作区写入 `approved.txt`，内容为 `AIBO_APPROVAL_OK`（16 字节）。"
+    },
+    {
+      "phase": "initial",
+      "name": "idle-before-app-restart"
+    },
+    {
+      "phase": "restart",
+      "name": "client-started"
+    },
+    {
+      "phase": "restart",
+      "name": "app-restart-context-and-binding",
+      "response": "ORCHID-742"
+    },
+    {
+      "phase": "restart",
+      "name": "old-release-still-operates",
+      "version": "0.1.18"
+    }
+  ],
+  "scope": "Final native run with question mapping fix; theme/menu checks are in ui-menus.json. Native question not observed, so full acceptance is incomplete. Temporary workspace/session/installation identifiers omitted."
+}

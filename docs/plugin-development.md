@@ -23,11 +23,11 @@ Cursor 专用行为见[当前规格](cursor-acp-spec.md)，历史测试结果见
 | 能力清单 | `aibo.plugin-manifest/v2`；host 范围和 platforms 以各包清单为准 |
 | Runtime | 能力示例 2.0；Cursor 显式 2.1，支持流式事件与 control |
 | 语义视图 | 能力示例 1.0 / `aibo.semantic-view/v1` |
-| 宿主 SDK | 能力示例要求 `hostSdk >=0.1.0 <0.2.0`；Cursor 0.1.18 要求 `>=0.1.1 <0.2.0`，宿主须实现公开 SDK 加载 |
+| 宿主 SDK | 能力示例要求 `hostSdk >=0.1.0 <0.2.0`；Cursor 0.2.1 要求 `>=0.1.2 <0.2.0`，宿主须实现公开 SDK 加载 |
 | 呈现 | `aibo.presentation-package/v1`，hostApi/coreSemantics 1.0.0；还需核对实际快照和动作合同 |
 | Cursor 会话 | 精确可选功能合同、provider `sessionControls`、`agent-managed` 权限归属及 `image.input` 附件合同 |
 
-Cursor 当前为 0.1.18；0.1.15 起的原生权限声明需要包含 migration 0047 的宿主。
+Cursor 当前为 0.2.1；0.1.15 起的原生权限声明需要包含 migration 0047 的宿主。
 这是源码功能要求，不是一个已发布的宿主版本号；仅满足 hostSdk 范围也不能证明具备这些功能。
 验证时记录宿主提交/构建、插件 release、Node 和原生 CLI 精确版本。
 

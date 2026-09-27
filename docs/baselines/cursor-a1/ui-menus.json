@@ -1,0 +1,66 @@
+{
+  "ok": false,
+  "error": "Error: timeout: image attachment UI",
+  "cleanupError": "invalid_session: session is closed",
+  "identifier": "local.aibo.cursorui.1790490359804",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "checks": [
+    {
+      "phase": "initial",
+      "name": "client-started"
+    },
+    {
+      "phase": "initial",
+      "name": "installation-and-pinned-releases",
+      "oldVersion": "0.1.18",
+      "newVersion": "0.2.1"
+    },
+    {
+      "phase": "initial",
+      "name": "menus-visible-and-operable",
+      "kit": "material3",
+      "appearance": "first"
+    },
+    {
+      "phase": "initial",
+      "name": "menus-visible-and-operable",
+      "kit": "material3",
+      "appearance": "opposite"
+    },
+    {
+      "phase": "initial",
+      "name": "menus-visible-and-operable",
+      "kit": "ak-ui",
+      "appearance": "first"
+    },
+    {
+      "phase": "initial",
+      "name": "menus-visible-and-operable",
+      "kit": "ak-ui",
+      "appearance": "opposite"
+    },
+    {
+      "phase": "initial",
+      "name": "mode-selection",
+      "id": "plan"
+    },
+    {
+      "phase": "initial",
+      "name": "mode-selection",
+      "id": "agent"
+    },
+    {
+      "phase": "initial",
+      "name": "mode-selection",
+      "id": "ask"
+    },
+    {
+      "phase": "initial",
+      "name": "send-and-timeline",
+      "response": "AIBO_CURSOR_UI_OK"
+    }
+  ],
+  "interaction": "real App and Tauri IPC in WKWebView; CGEvent clicks/keys; DOM input values seeded by probe",
+  "scope": "First UI run: menu and send checks passed; image assertion used original clipboard filename instead of host-generated filename. Corrected before next run. No later checks claimed."
+}

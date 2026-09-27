@@ -1,5 +1,53 @@
 # Cursor ACP 验证记录
 
+## 2026-09-27 — A1 复验与 Cursor 0.2.1 修正
+
+基线：宿主 `5f5c79b` 加工作区能力修正，宿主 SDK **0.1.2**；插件 `8f9f13d` 加工作区修正，
+release **0.2.1**（本地构建，尚未发布）。macOS 27.0（26A428）arm64、Node.js `v24.18.0`、
+Cursor CLI `2026.09.18-9a7762b`，使用已有登录态。旧插件取自 `d2616e4` 的 0.1.18。
+
+修正：通用层按原生 `loadSession` 声明恢复；`user-input.respond` 由 Cursor 扩展显式声明。
+单选问题发现消费端不兼容：原生使用 `prompt`，宿主读取 `question`；界面提交 label，原回调只接受 ID。
+0.2.1 补齐映射，并拒绝不存在或有歧义的选项。相关回归测试先复现问题再通过。
+
+| 层级 / 命令 | 本次结果 |
+| --- | --- |
+| 宿主 `pnpm run verify` | 架构检查 41 项、测试 491 项、类型检查与构建通过 |
+| 插件 `pnpm run verify` | 40 项测试、离线构建、打包 Worker 假 ACP smoke 通过 |
+| 宿主 `cargo test --manifest-path src-tauri/Cargo.toml --lib session_contract` | 4 项通过 |
+| 宿主 `cargo test --manifest-path src-tauri/Cargo.toml --lib capability_session_projects_tools_and_recovers_after_process_restart` | 1 项通过 |
+| 宿主 `node probes/plugin-command-menu-browser.mjs` | 修正过期 fixture 锚点后，ak-ui / material3 命令菜单通过 |
+| 插件 `node scripts/probe-cursor-parameters.mjs` | 真实 Auto 回合；GPT-5.5、Sonnet 4.6 参数设置与跨进程恢复通过，finally 恢复原模型及参数 |
+| 插件 `node scripts/probe-cursor-ui.mjs` | 隔离真实 App、Tauri IPC、WKWebView 和系统点击/键盘；各项覆盖及缺口见下文 |
+| 插件 `node scripts/probe-cursor-question-browser.mjs` | 真实适配器→宿主事件投影→App 问题界面→原生选项 ID，双皮肤浅/深色共 4 组通过；原生请求为 fixture |
+
+桌面探针使用临时 Git 工作区、唯一 application identifier/window label 和独立应用数据。
+安装、信任、会话准备通过真实 IPC；表单内容由探针填入，菜单、发送、取消、批准使用系统输入。
+图片通过合成粘贴事件注入 PNG，确认真实附件预览与模型识别；这不验证系统剪贴板权限。
+Ask 执行文本/图片回合，Plan 尝试原生提问，Agent 在临时工作区执行写文件并经过原生审批。
+模型选择恢复后结束会话，应用重启前保留 idle 会话，第二个进程加载原生历史。
+
+- 双皮肤 ak-ui/material3、浅色/深色下，slash 菜单展示、选择、Escape 关闭和模型菜单展示/关闭通过；
+  Plan → Agent → Ask 切换通过。首轮探针在这些检查之后因图片文件名断言错误退出，不能算整轮成功；
+  后续改为检查宿主实际预览，覆盖见 [ui-menus.json](baselines/cursor-a1/ui-menus.json)。
+- 最终桌面运行安装打包后的 0.2.1：发送得到 `AIBO_CURSOR_UI_OK`，图片识别为 `RED`，
+  Stop 收敛为 interrupted，两个原生审批经界面接受，重启后的回答保持 `ORCHID-742` 上下文。
+  新旧会话 installation ID 分别保持绑定，0.1.18 旧空会话重新打开并读取模型目录通过；未验证旧版本新一轮对话。
+  最终运行复用此前菜单证据，设置 `AIBO_CURSOR_UI_SKIP_MENUS=1`，
+  `AIBO_CURSOR_PACKAGE` 指向 `dist/build-B3Sa9T/cursor`。产物入口摘要及脱敏结果见
+  [ui-final.json](baselines/cursor-a1/ui-final.json)。
+- 原生提问 **未通过**：[先前 Agent 模式](baselines/cursor-a1/ui-before-question-fix.json)及最终 Plan 模式都未观察到 `cursor/ask_question`，
+  CLI 用普通文本回复当前没有 AskQuestion 工具；未据此推断所有环境都不支持。
+  `ok: true` 仅表示探针完成，`acceptanceComplete: false` 保留缺口。
+  [question-browser.json](baselines/cursor-a1/question-browser.json)仅证明协议回放与界面映射。
+- 真实参数配置及恢复证据见 [parameters.json](baselines/cursor-a1/parameters.json)；
+  配置成功不证明 GPT-5.5/Sonnet 的实际推理请求可用或上下文容量极限。
+
+未覆盖：结构化原生提问/多选、完整计划及其交互取消、Applications 启动与未登录路径、
+外部皮肤、其他平台、完整权限组合、进程泄漏压力测试。本次没有截图或视觉质量验收。
+已有 Rust dead-code 与前端 chunk 大小警告未阻止检查；探针主动终止 Tauri 时的 ELIFECYCLE 日志
+不代表检查失败，以报告与退出码为准。A1 保留原生提问验收缺口，不标记全部完成。
+
 ## 2026-09-25 — Cursor 0.1.17 回复构造精简
 
 - 目标宿主：Aibo `d402f6f` 加本次工作区精简改动；Node.js `v24.18.0`，macOS arm64。

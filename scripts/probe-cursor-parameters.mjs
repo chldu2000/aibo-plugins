@@ -14,9 +14,13 @@ let session = createSession();
 const timeout = setTimeout(() => { void session.close(); }, 300_000);
 timeout.unref();
 const evidence = [];
+let originalModel;
+const originalParameters = new Map();
 try {
   await session.open({ ...open, mode: 'create' });
-  const auto = (await session.models({ action: 'list' })).models.find(model => model.displayName.toLowerCase() === 'auto');
+  const initialCatalog = await session.models({ action: 'list' });
+  originalModel = initialCatalog.current;
+  const auto = initialCatalog.models.find(model => model.displayName.toLowerCase() === 'auto');
   assert.ok(auto);
   await session.models({ action: 'set', reference: auto.reference });
   assert.equal((await session.prompt({ text: 'Reply with exactly AIBO_PARAMETER_PROBE_OK', turnId: 'seed' })).status, 'completed');
@@ -27,6 +31,10 @@ try {
     const model = catalog.models.find(model => model.reference === reference);
     assert.ok(model.reasoningEfforts.length > 1);
     assert.ok(model.contextWindows.length > 1);
+    originalParameters.set(reference, {
+      level: (await session.configure('reasoning', { action: 'list' })).current,
+      contextWindow: (await session.configure('context', { action: 'list' })).current,
+    });
     const level = model.reasoningEfforts.at(-1).id;
     const contextWindow = model.contextWindows.at(-1).id;
     await session.configure('reasoning', { action: 'set', level });
@@ -43,5 +51,18 @@ try {
   console.log(JSON.stringify({ ok: true, evidence }));
 } finally {
   clearTimeout(timeout);
-  await session.close(); await rm(workspacePath, { recursive: true, force: true });
+  try {
+    if (originalModel) {
+      if (session.phase !== 'ready') {
+        await session.close(); session = createSession();
+        await session.open({ ...open, mode: 'create' });
+      }
+      for (const [reference, original] of originalParameters) {
+        await session.models({ action: 'set', reference });
+        if (original.level != null) await session.configure('reasoning', { action: 'set', level: original.level });
+        if (original.contextWindow != null) await session.configure('context', { action: 'set', contextWindow: original.contextWindow });
+      }
+      await session.models({ action: 'set', reference: originalModel });
+    }
+  } finally { await session.close(); await rm(workspacePath, { recursive: true, force: true }); }
 }

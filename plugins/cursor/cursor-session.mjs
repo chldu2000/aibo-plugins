@@ -1,7 +1,7 @@
 import { AcpSession, BASE_CAPABILITIES, object, pluginError } from '@aibo/acp-adapter/session';
 
 // The generic ACP session lives in the host SDK; this module keeps only Cursor behaviour.
-export const CAPABILITIES = BASE_CAPABILITIES;
+export const CAPABILITIES = [...BASE_CAPABILITIES, 'user-input.respond'];
 
 const MODE_BY_INTERACTION = { ask: 'ask', plan: 'plan', edit: 'agent' };
 
@@ -46,6 +46,7 @@ const NAMESPACE = 'dev.aibo.cursor';
 
 /** Cursor-specific behaviour on top of the generic ACP session. */
 export const cursorExtension = {
+  capabilities: CAPABILITIES,
   label: 'Cursor',
   command: 'agent',
   args: ['acp'],
@@ -82,14 +83,22 @@ export const cursorExtension = {
         const response = [];
         for (const question of questions) {
           const selected = Array.isArray(answers?.[question.id]) ? answers[question.id] : [answers?.[question.id]].filter(Boolean);
-          const allowed = new Set(question.options.map(option => option.id));
-          if (!selected.every(value => allowed.has(value)) || (!question.allowMultiple && selected.length > 1)) throw pluginError('invalid_input', 'Cursor question answer contains an invalid option');
-          response.push({ questionId: question.id, selectedOptionIds: selected });
+          // The host's question UI submits display labels. Keep native IDs accepted for
+          // existing API consumers, but never guess if a label and another ID collide.
+          const selectedOptionIds = selected.map(value => {
+            const matches = question.options.filter(option => option.id === value || option.label === value);
+            if (matches.length !== 1) throw pluginError('invalid_input', 'Cursor question answer contains an invalid option');
+            return matches[0].id;
+          });
+          if (!question.allowMultiple && selectedOptionIds.length > 1) throw pluginError('invalid_input', 'Cursor question answer contains an invalid option');
+          response.push({ questionId: question.id, selectedOptionIds });
         }
         return { outcome: { outcome: 'answered', answers: response } };
       };
       if (!session.await(requestId, message.id, { kind: 'question', questions, answer })) return true;
-      session.event('user_input.requested', { requestId, title: params.title ?? null, questions }, { requestId, toolCallId: params.toolCallId ?? null });
+      session.event('user_input.requested', { requestId, title: params.title ?? null,
+        questions: questions.map(question => ({ ...question, question: question.prompt ?? question.question, isOther: false })),
+      }, { requestId, toolCallId: params.toolCallId ?? null });
       return true;
     }
     if (message.method === 'cursor/create_plan') {

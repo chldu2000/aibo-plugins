@@ -1,0 +1,69 @@
+{
+  "ok": true,
+  "identifier": "local.aibo.cursorui.1790490694527",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "checks": [
+    {
+      "phase": "initial",
+      "name": "client-started"
+    },
+    {
+      "phase": "initial",
+      "name": "installation-and-pinned-releases",
+      "oldVersion": "0.1.18",
+      "newVersion": "0.2.1"
+    },
+    {
+      "phase": "initial",
+      "name": "send-and-timeline",
+      "response": "AIBO_CURSOR_UI_OK"
+    },
+    {
+      "phase": "initial",
+      "name": "image-paste-preview-and-understanding",
+      "response": "我先查看附带的图片，确认主色。RED"
+    },
+    {
+      "phase": "initial",
+      "name": "cancel-through-ui",
+      "state": "interrupted"
+    },
+    {
+      "phase": "initial",
+      "name": "question",
+      "status": "not-observed",
+      "observed": "no-interaction",
+      "response": "我来查找可用的提问工具，然后用它让你在 ORCHID 和 MAPLE 之间选择。当前环境里没有可用的 `ask_question` 工具，所以我直接问你：\n\n请选择：**ORCHID** 还是 **MAPLE**？"
+    },
+    {
+      "phase": "initial",
+      "name": "approval",
+      "status": "passed",
+      "observed": "approval",
+      "response": "正在工作区执行该命令。命令已成功执行（退出码 0）。\n\n已在工作区创建 `approved.txt`，内容为 `AIBO_APPROVAL_OK`（16 字节）。"
+    },
+    {
+      "phase": "initial",
+      "name": "idle-before-app-restart"
+    },
+    {
+      "phase": "restart",
+      "name": "client-started"
+    },
+    {
+      "phase": "restart",
+      "name": "app-restart-context-and-binding",
+      "response": "ORCHID-742"
+    },
+    {
+      "phase": "restart",
+      "name": "old-release-still-operates",
+      "version": "0.1.18"
+    }
+  ],
+  "interaction": "real App and Tauri IPC in WKWebView; CGEvent clicks/keys; DOM input values seeded by probe",
+  "scope": "Native UI before the question mapping fix; one additional approval was completed through isolated AXPress after the probe handled the first. Question was not emitted in Agent mode.",
+  "packageBuild": "build-dFow0U/cursor",
+  "acceptanceComplete": false
+}

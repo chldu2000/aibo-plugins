@@ -1,6 +1,6 @@
 # Cursor ACP 接入实现规格
 
-本文描述插件 **0.2.0** 的当前适配合同，以清单、Worker 和测试为实现依据。
+本文描述插件 **0.2.1** 的当前适配合同，以清单、Worker 和测试为实现依据。
 真实 CLI、宿主和 UI 的历史证据见[验证记录](cursor-acp-validation.md)，未完成项见[验收清单](cursor-acp-checklist.md)。
 文档整理不代表重新通过全部真机验收。
 
@@ -54,8 +54,8 @@ Manifest v2、Runtime 2.1、会话操作 1.0.0、settings v1、recovery v1、ACP
 会话身份来自 scope，工作区、权限、turnId 和 settings 来自可信 context；不信任 input 中的替代身份。
 配置操作的 read effect 不授予工作区写权限。Control 校验所属 invocation，运行中拒绝模型配置。
 
-基础语义能力为 session.create/resume/close、turn.send/cancel、stream.text、approval.respond、
-user-input.respond、command.list。模型配置有效时增加 model.select；参数化配置有效时增加
+基础语义能力为 session.create/close、turn.send/cancel、stream.text、approval.respond、
+user-input.respond、command.list；原生 `loadSession: true` 时增加 session.resume。模型配置有效时增加 model.select；参数化配置有效时增加
 model.reasoning/model.context-window。只有 ACP 宣告图片支持时增加 image.input。
 
 宿主根据标准生命周期合同派生基础 queue.manage；本插件不声明原生队列操作或 queue.steer。
@@ -131,10 +131,15 @@ Runtime control 还绑定原 invocation。跨会话、过期、重复或伪造�
 
 - 权限 accept/cancel 根据 option.kind 找 allow_once/reject_once，回传真实 optionId；
   不升级为 allow_always，无匹配选项时取消，轮次取消也回传 cancelled。
-- ask_question 为问题和选项建立可逆 ID 映射，验证单选/多选；不能把任意自由文本冒充选项。
+- ask_question 按 [Cursor ACP 文档](https://prod.cursor.com/docs/cli/acp)把原生 `prompt` 映射为宿主 `question`。
+  宿主界面提交选项 label，插件将其还原为原生 option ID，并兼容 API 调用方直接提交 ID；
+  匹配不唯一或选项不存在时拒绝。验证单选/多选数量，不提供原生协议无法表达的 Other 自由输入。
 - create_plan 先提供完整计划及关联审批，accept/cancel 转 accepted/rejected，轮次取消转 cancelled；
   不虚构文件或 planUri，计划接受不改变执行授权。
 - 通知不返回 RPC。多选、完整计划和取消必须补充真实桌面交互验证。
+
+2026-09-27：上述单选链路已通过双皮肤、浅色/深色浏览器回放；本机 CLI 在 Agent 和 Plan
+探测中都没有发出结构化 `cursor/ask_question`，因此原生提问验收仍未通过，见[验证记录](cursor-acp-validation.md)。
 
 ## 6. 模型、命令、设置与图片
 
@@ -162,6 +167,9 @@ image.input 仅在 initialize 返回 promptCapabilities.image === true 时声明
 宿主图片描述符转为 `{type:"image", mimeType, data}`；文本附件引用仍保留，不能用路径文字代替图像字节。
 只接受 PNG/JPEG/GIF/WebP，最多 8 张、单张 10 MiB、合计 20 MiB；在 native prompt 前检查
 描述符、文件、符号链接、实际内容和读取中变化，关闭文件句柄。CLI 支持图片不等于所有模型都有视觉能力。
+
+0.2.1 显式声明 Cursor 扩展实现的 `user-input.respond`；通用适配层不再默认声明厂商提问能力。
+`session.resume` 仅在原生 initialize 返回 `loadSession: true` 时返回给宿主。
 
 ## 7. 取消与恢复
 
