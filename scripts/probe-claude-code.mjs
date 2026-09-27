@@ -95,8 +95,9 @@ try {
   result.checks.push(`manual write turn asked for approval ${approvals.length} time(s); the file was written after acceptance`);
   await first.invoke('aibo.session.close', {});
 
-  // Plan → approve → implement in one turn: the plan approval offers the declared transitions, and
-  // choosing Manual lets Claude switch modes and ask for its edits in the same turn.
+  // Plan → approve → implement in one turn: the plan approval offers the declared transitions. Choosing
+  // PROBE_PLAN_CHOICE (manual, auto or clear-auto; default manual) lets Claude switch modes in the same turn.
+  const choice = process.env.PROBE_PLAN_CHOICE ?? 'manual';
   await first.invoke('aibo.session.open', { mode: 'create', executionProfile: profile('plan'), recovery: null });
   const planApprovals = [];
   first.listeners.clear();
@@ -104,20 +105,24 @@ try {
     if (entry.event.type !== 'approval.requested') return;
     const payload = entry.event.payload;
     planApprovals.push(payload);
-    const transition = payload.options.find(option => option.effects?.sessionControl === 'manual');
+    const transition = payload.options.find(option => option.effects && option.effects.sessionControl === choice.replace('clear-', '') && !!option.effects.contextReset === choice.startsWith('clear-'));
     const allow = transition ?? payload.options.find(option => option.kind === 'allow');
     void first.control(entry.invocationId, feature('approval.respond'), { requestId: payload.requestId, optionId: allow.id });
   });
   const implemented = await first.invoke('aibo.session.turn', { text: 'Make a one-line plan to create a file named aibo-plan.txt in the current directory containing exactly AIBO_PLAN_OK, then call ExitPlanMode to ask for approval. Once approved, create the file and do nothing else.' }, 'plan-exit-turn');
   const exit = planApprovals.find(payload => payload.options.some(option => option.effects));
   assert.ok(exit, 'Claude asked to leave Plan mode');
-  assert.deepEqual(exit.options.map(option => [option.id, option.label, option.effects?.sessionControl ?? null]).filter(([id]) => id !== 'exit-plan-auto'), [
+  // Auto options depend on the model and organization; Manual and keep-planning are always offered.
+  const auto = new Set(['exit-plan-auto', 'exit-plan-clear-auto']);
+  assert.deepEqual(exit.options.filter(option => !auto.has(option.id)).map(option => [option.id, option.label, option.effects?.sessionControl ?? null]), [
     ['exit-plan-default', '批准计划，手动审批编辑', 'manual'], ['reject', '继续规划', null],
   ], 'only declared transitions and keep-planning are offered');
+  assert.ok(exit.options.filter(option => auto.has(option.id)).every(option => option.effects?.sessionControl === 'auto' && !!option.effects.contextReset === (option.id === 'exit-plan-clear-auto')));
+  assert.ok(exit.options.some(option => option.effects && option.effects.sessionControl === choice.replace('clear-', '') && !!option.effects.contextReset === choice.startsWith('clear-')), `${choice} was offered and chosen`);
   result.planOptions = exit.options.map(option => option.id);
   assert.equal(implemented.status, 'completed', JSON.stringify(first.events.filter(entry => entry.event.type === 'turn.failed').map(entry => entry.event.payload)));
   assert.equal((await readFile(path.join(workspacePath, 'aibo-plan.txt'), 'utf8')).trim(), 'AIBO_PLAN_OK');
-  result.checks.push(`plan approval offered ${result.planOptions.join(', ')}; choosing Manual switched modes in the same turn and ${planApprovals.length - 1} edit approval(s) followed`);
+  result.checks.push(`plan approval offered ${result.planOptions.join(', ')}; choosing ${choice} switched modes in the same turn and ${planApprovals.length - 1} further approval(s) followed`);
   await first.close();
 
   const second = worker(2);

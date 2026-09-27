@@ -11,6 +11,13 @@
   "requestPrefix": "claude",
   "approvalOptions": [
     {
+      "optionId": "exit-plan-clear-auto",
+      "toolKind": "switch_mode",
+      "label": "清空上下文，批准计划并使用 Auto",
+      "sessionControl": "auto",
+      "contextReset": true
+    },
+    {
       "optionId": "exit-plan-auto",
       "toolKind": "switch_mode",
       "label": "批准计划并使用 Auto",

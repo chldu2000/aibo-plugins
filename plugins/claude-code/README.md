@@ -26,14 +26,19 @@ and Aibo forwards the approvals it actually requests. There is no workspace sand
 model and organization settings; when Claude Code does not offer it, choosing Auto fails to open the session.
 
 Approving a plan: when Claude finishes planning it asks to leave Plan mode. Aibo's approval card offers
-"批准计划并使用 Auto" (when Claude offers Auto), "批准计划，手动审批编辑" and "继续规划". Approving switches the
+"清空上下文，批准计划并使用 Auto" and "批准计划并使用 Auto" (when Claude offers Auto), "批准计划，手动审批编辑" and "继续规划". Approving switches the
 session to Auto or Manual in the same turn: Aibo saves the new mode before Claude is answered, and the timeline
 records the switch. If Claude changes mode any other way during a turn, the turn fails and Aibo's mode is restored.
+
+Clearing context continues the plan in a fresh Claude context in the same turn, and later turns use that context.
+Limitation of adapter 0.81.2: after Aibo or the worker restarts, resuming the session restores the conversation from
+before the clear, because the fresh context is stored under an ID the adapter does not expose. Claude then does not
+remember the implementation; the timeline keeps it, and Aibo notes this once on the first resume.
 
 Not exposed:
 
 - Accept edits: its profile equals Manual's, so the host could not tell them apart. Bypass permissions is never selected.
-- The "clear context" plan approvals (planned as A6).
+- Clearing context without Auto ("clear context and auto-accept edits"), since Accept edits is not exposed.
 - A read-only Ask mode; Claude Code has no mode that answers without tools.
 - When the model does not support Auto, Claude silently falls back to Accept edits; Aibo treats that as an
   unapproved switch and fails the turn.
@@ -52,5 +57,6 @@ the agent receives Method not found.
 `CLAUDE_AGENT_ACP_BIN`) and runs the plugin's worker against real Claude Code: a Plan session with
 capabilities, commands and models, a short Plan reply, a Manual write turn approved through Aibo that creates
 a file, a Plan turn whose plan approval switches to Manual and then writes a file, and a resume in a new worker
-process. It sends three short prompts. Last run: Claude Code 2.1.280 with adapter 0.81.2 (2026-09-27). `PROBE_CONFIG_ONLY=1` stops before
+process. It sends three short prompts. `PROBE_PLAN_CHOICE` picks the plan approval: `manual` (default),
+`auto` or `clear-auto`. Last run: Claude Code 2.1.280 with adapter 0.81.2 (2026-09-27). `PROBE_CONFIG_ONLY=1` stops before
 any prompt.
