@@ -34,5 +34,6 @@
       "toolKind": "switch_mode",
       "label": "继续规划"
     }
-  ]
+  ],
+  "elicitation": true
 }

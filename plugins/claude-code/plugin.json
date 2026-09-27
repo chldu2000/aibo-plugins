@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.claude-code",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "Claude Code",
   "description": "Claude Code sessions through the Agent Client Protocol adapter (claude-agent-acp). Configuration only.",
   "hostSdk": {
-    "min": "0.1.4",
+    "min": "0.1.5",
     "maxExclusive": "0.2.0"
   },
   "host": {
@@ -594,6 +594,62 @@
               "optionId": {
                 "type": "string",
                 "minLength": 1
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "resolved",
+              "recovery",
+              "capabilities"
+            ],
+            "properties": {
+              "resolved": {
+                "const": true
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 120000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.user-input",
+          "capability": {
+            "id": "dev.aibo.claude-code.user-input.respond",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "requestId",
+              "answers"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "answers": {
+                "type": "object"
               }
             }
           },

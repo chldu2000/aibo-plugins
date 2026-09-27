@@ -3,11 +3,11 @@
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
 This plugin is configuration only: `plugin.json`, `acp.json` and the one-line worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.4's `serveAcpAgent`. Release **0.2.0**.
+[ACP template](../acp-template/), running on host SDK 0.1.5's `serveAcpAgent`. Release **0.3.0**.
 
 ## Requirements
 
-- Aibo with host SDK 0.1.4, Node.js 22 or later.
+- Aibo with host SDK 0.1.5, Node.js 22 or later.
 - Claude Code installed and signed in (`claude` works in a terminal). The adapter uses that login;
   Aibo does not store Claude credentials.
 - The adapter on `PATH`: `npm install -g @agentclientprotocol/claude-agent-acp`. Aibo does not install it.
@@ -46,17 +46,19 @@ Not exposed:
 ## Capabilities
 
 Negotiated from the adapter: create and resume sessions (resume uses `session/load` and needs a session that
-has received a prompt), text streaming, cancellation, approvals, command directory, image input, model selection
+has received a prompt), text streaming, cancellation, approvals, questions, command directory, image input, model selection
 and reasoning effort. Claude Code does not expose context-window options, so that control is not offered.
-Claude's own question tool (AskUserQuestion) uses ACP elicitation, which the generic adapter does not implement;
-the agent receives Method not found.
+Questions: Claude's AskUserQuestion appears as an Aibo question. Each question offers Claude's options and an "other" text
+answer. Multi-select questions accept one pick in Aibo; skipping a question is not available. The same channel carries
+forms from MCP servers and Claude's "retry with the fallback model?" prompt after a refusal. Retrying switches the model
+inside Claude, and Aibo's model selection is not updated to match.
 
 ## Verification
 
 `node scripts/probe-claude-code.mjs` installs the adapter into a temporary prefix (or uses
 `CLAUDE_AGENT_ACP_BIN`) and runs the plugin's worker against real Claude Code: a Plan session with
 capabilities, commands and models, a short Plan reply, a Manual write turn approved through Aibo that creates
-a file, a Plan turn whose plan approval switches to Manual and then writes a file, and a resume in a new worker
-process. It sends three short prompts. `PROBE_PLAN_CHOICE` picks the plan approval: `manual` (default),
+a file, an AskUserQuestion answered through Aibo, a Plan turn whose plan approval switches to Manual and then writes a file, and a resume in a new worker
+process. It sends four short prompts. `PROBE_PLAN_CHOICE` picks the plan approval: `manual` (default),
 `auto` or `clear-auto`. Last run: Claude Code 2.1.280 with adapter 0.81.2 (2026-09-27). `PROBE_CONFIG_ONLY=1` stops before
 any prompt.

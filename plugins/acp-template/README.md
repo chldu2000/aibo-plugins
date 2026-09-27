@@ -20,6 +20,8 @@ it: map an `auto` write mode if the agent has one, add `transitions` to the sour
 `approval.respond` to its `{ requestId, optionId }` input, and list the native options in `acp.json`
 `approvalOptions` with a `sessionControl`. See `plugins/claude-code` and the
 [adapter documentation](../../../aibo/packages/acp-adapter/README.md).
+With host SDK 0.1.5, set `"elicitation": true` and add the `user-input.respond` operation to show the agent's
+ACP form requests as Aibo questions.
 
 Capabilities follow the agent's `initialize` response: resume only with `loadSession`, image input
 only with image prompts, model and parameter selection only when the agent returns config options.

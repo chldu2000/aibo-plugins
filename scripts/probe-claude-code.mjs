@@ -1,6 +1,6 @@
 // Real Claude Code through the configuration-only plugin: plugin.json + acp.json on the host SDK worker.
 // Installs @agentclientprotocol/claude-agent-acp into a temporary prefix unless CLAUDE_AGENT_ACP_BIN names
-// a directory containing `claude-agent-acp`. Uses the local Claude Code login and sends three short prompts.
+// a directory containing `claude-agent-acp`. Uses the local Claude Code login and sends four short prompts.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -60,8 +60,7 @@ try {
   assert.equal((await first.init()).protocol, '2.1');
   const planned = await first.invoke('aibo.session.open', { mode: 'create', executionProfile: profile('plan'), recovery: null });
   result.capabilities = planned.capabilities;
-  for (const expected of ['session.create', 'turn.send', 'approval.respond', 'command.list']) assert.ok(planned.capabilities.includes(expected), expected);
-  assert.ok(!planned.capabilities.includes('user-input.respond'), 'no vendor question support is claimed');
+  for (const expected of ['session.create', 'turn.send', 'approval.respond', 'command.list', 'user-input.respond']) assert.ok(planned.capabilities.includes(expected), expected);
   result.checks.push('plan session opens through acp.json; capabilities narrowed by the native handshake');
   result.commands = (await first.invoke(feature('command.list'), { action: 'get' })).commands.length;
   if (planned.capabilities.includes('model.select')) {
@@ -76,6 +75,22 @@ try {
   assert.equal((await first.invoke('aibo.session.turn', { text: 'Reply with exactly: AIBO_CLAUDE_OK' }, 'plan-turn')).status, 'completed');
   assert.match(text(first), /AIBO_CLAUDE_OK/);
   result.checks.push('plan turn streams the requested reply');
+  // AskUserQuestion arrives as an ACP form elicitation and is answered through the host question.
+  const questions = [];
+  first.listeners.add(entry => {
+    if (entry.event.type !== 'user_input.requested') return;
+    questions.push(entry.event.payload);
+    const [question] = entry.event.payload.questions;
+    const blue = question.options.find(option => /blue/i.test(option.label));
+    void first.control(entry.invocationId, feature('user-input.respond'), { requestId: entry.event.payload.requestId, answers: { [question.id]: [blue.label] } });
+  });
+  assert.equal((await first.invoke('aibo.session.turn', { text: 'Use the AskUserQuestion tool once to ask me which colour I prefer, with exactly two options: Red and Blue. Then reply with exactly COLOUR=<my answer> and nothing else.' }, 'question-turn')).status, 'completed');
+  assert.equal(questions.length, 1);
+  assert.ok(questions[0].questions[0].isOther, 'the custom answer field becomes the other input');
+  assert.match(text(first), /COLOUR=Blue/i);
+  first.listeners.clear();
+  result.question = questions[0].questions.map(question => ({ header: question.header, question: question.question, options: question.options.map(option => option.label) }));
+  result.checks.push('AskUserQuestion reached the host as a question and Claude used the answer');
   await first.invoke('aibo.session.close', {});
 
   const editor = await first.invoke('aibo.session.open', { mode: 'create', executionProfile: profile('edit'), recovery: null });
