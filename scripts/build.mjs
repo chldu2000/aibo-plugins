@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, copyFile, cp, writeFile, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, copyFile, cp, writeFile, chmod, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -20,10 +20,15 @@ export async function buildExternalPlugin() {
   const protocolTar=path.join(protocol,pack(protocol).filename);
   for(const name of ['package.json','README.md','runtime.mjs','stdio.mjs','runtime.d.ts','stdio.d.ts','host-tools.mjs','host-tools.d.ts','host-tools-mcp.mjs','host-tools-mcp.d.ts']) await copyFile(hostPath('packages/capability-runtime',name),path.join(sdk,name));
   const sdkTar=path.join(sdk,pack(sdk).filename);
+  // Generic ACP session, transport and config parsing; provided by the host SDK at runtime.
+  const acp=path.join(root,'acp-adapter');await mkdir(acp);
+  const acpManifest=JSON.parse(await readFile(hostPath('packages/acp-adapter/package.json'),'utf8'));
+  for(const name of ['package.json',...acpManifest.files]) await copyFile(hostPath('packages/acp-adapter',name),path.join(acp,name));
+  const acpTar=path.join(acp,pack(acp).filename);
   async function buildCapabilityPackage(name,{compile=false,entry}) {
     const source=path.join(project,'plugins',name),consumer=path.join(root,`${name}-consumer`);
     await cp(source,consumer,{recursive:true});
-    execFileSync('npm',['install','--save-dev','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar],{cwd:consumer,stdio:'pipe'});
+    execFileSync('npm',['install','--save-dev','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar,acpTar],{cwd:consumer,stdio:'pipe'});
     await copyFile(path.join(source,'package.json'),path.join(consumer,'package.json'));
     if(compile) execFileSync(process.execPath,[tsc,'-p','tsconfig.json'],{cwd:consumer,stdio:'pipe'});
     const archive=pack(consumer);

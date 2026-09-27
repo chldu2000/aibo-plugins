@@ -33,6 +33,7 @@
 
 踩坑依据：`6d00b8c` 发现真实冷启动超过原超时；`1fdb85f` 修复分帧、背压和事件终态；`fba1704` 修复强制取消及悬挂交互。
 
+- 0.2.0 起 ACP 传输、通用会话、配置解析和图片输入位于宿主 SDK 的 `@aibo/acp-adapter`（`../aibo/packages/acp-adapter`），测试在宿主的 `test/acp-adapter-*.test.mjs`；本仓库只保留 Cursor 扩展。
 - 修改 ACP 传输时覆盖分割 UTF-8、半行/多行、CRLF、ID 0、双向请求、背压、超限帧、畸形 JSON、EOF、stdin 错误和超时。stdout 仅承载协议，诊断写 stderr；缓冲区、写队列和诊断输出均需有界。
 - 根据真实操作耗时设置内部 deadline，并与 manifest 外层超时协调；冷启动/new/load 与长回合分别处理。超时或断连后结束所有 pending request，释放子进程、监听器、等待器和计时器。
 - 取消需结算待处理审批/提问，发送原生 cancel，在宽限期后强制关闭，并让回合以唯一 interrupted 终态结束。cancel accepted 只表示接收取消，不能据此认定清理已经完成。

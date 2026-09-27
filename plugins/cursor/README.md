@@ -1,12 +1,17 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.1.18**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.2.0**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
 
-Release 0.1.18 adds the generic host-tool catalog through a private MCP stdio bridge.
-It requires host SDK 0.1.1 and the `aibo.host-tools/v1` host contract. Install it as a new release;
-existing sessions retain their pinned installation.
+Release 0.2.0 moves the generic ACP transport, session mapping, model configuration and image input
+into the host SDK's `@aibo/acp-adapter`; this plugin keeps only Cursor behaviour (authentication,
+mode mapping, recovery schema, `cursor/*` methods and command and model heuristics). Behaviour is
+unchanged from 0.1.18. It requires host SDK 0.1.2. Install it as a new release; existing sessions
+retain their pinned installation.
+
+Release 0.1.18 added the generic host-tool catalog through a private MCP stdio bridge, which needs
+the `aibo.host-tools/v1` host contract.
 
 ## Requirements and installation
 

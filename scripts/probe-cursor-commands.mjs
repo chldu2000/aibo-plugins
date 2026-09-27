@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { CursorSession } from '../plugins/cursor/cursor-session.mjs';
+import './host-sdk.mjs';
+const { CursorSession } = await import('../plugins/cursor/cursor-session.mjs');
 
 const workspacePath = await mkdtemp(path.join(tmpdir(), 'aibo-cursor-commands-'));
 const events = [];
