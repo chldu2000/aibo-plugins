@@ -10,9 +10,13 @@ import { acpAgentConfig, extensionFromConfig } from '@aibo/acp-adapter/worker';
 const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
-const template = file => path.join(project, 'plugins/acp-template', file);
+// Configuration-only ACP plugins: no code beyond the one-line worker.
+const plugins = ['acp-template', 'claude-code'];
 
-test('the ACP template is a valid manifest whose operations match the host session contracts', async () => {
+for (const name of plugins) {
+const template = file => path.join(project, 'plugins', name, file);
+
+test(`${name} is a valid manifest whose operations match the host session contracts`, async () => {
   const require = createRequire(path.join(aibo, 'package.json'));
   const Ajv = require('ajv/dist/2020').default;
   const manifest = await json(template('plugin.json'));
@@ -30,7 +34,7 @@ test('the ACP template is a valid manifest whose operations match the host sessi
   }
 });
 
-test('the template acp.json configures the generic worker and every declared mode', async () => {
+test(`${name} acp.json configures the generic worker and every declared mode`, async () => {
   const manifest = await json(template('plugin.json'));
   const config = acpAgentConfig(await json(template('acp.json')), manifest);
   const extension = extensionFromConfig(config, manifest);
@@ -42,3 +46,8 @@ test('the template acp.json configures the generic worker and every declared mod
   }
   assert.throws(() => acpAgentConfig({ ...config, command: 'sh' }, manifest), /executableDependencies/);
 });
+
+test(`${name} ships only the configuration-only worker`, async () => {
+  assert.equal(await readFile(template('worker.mjs'), 'utf8'), await readFile(path.join(project, 'plugins/acp-template/worker.mjs'), 'utf8'));
+});
+}

@@ -1,0 +1,619 @@
+{
+  "schema": "aibo.plugin-manifest/v2",
+  "pluginId": "dev.aibo.claude-code",
+  "version": "0.1.0",
+  "displayName": "Claude Code",
+  "description": "Claude Code sessions through the Agent Client Protocol adapter (claude-agent-acp). Configuration only.",
+  "hostSdk": {
+    "min": "0.1.3",
+    "maxExclusive": "0.2.0"
+  },
+  "host": {
+    "min": "0.1.0",
+    "maxExclusive": "0.2.0"
+  },
+  "platforms": [
+    "darwin-arm64"
+  ],
+  "protocols": {
+    "runtime": {
+      "min": "2.1",
+      "max": "2.1"
+    }
+  },
+  "entrypoint": {
+    "executable": "worker.mjs"
+  },
+  "executableDependencies": [
+    {
+      "kind": "runtime",
+      "name": "node",
+      "versionRange": ">=22",
+      "required": true
+    },
+    {
+      "kind": "executable",
+      "name": "claude-agent-acp",
+      "required": true
+    }
+  ],
+  "contributions": [
+    {
+      "kind": "capabilityProvider",
+      "id": "dev.aibo.claude-code.agent",
+      "scope": "session",
+      "required": true,
+      "displayName": "Claude Code",
+      "executionPolicy": "agent-managed",
+      "sessionControls": [
+        {
+          "id": "manual",
+          "kind": "mode",
+          "label": "Manual",
+          "description": "Claude Code Manual mode: edits and commands ask for approval in Aibo; Claude Code manages its own permissions, no workspace sandbox.",
+          "command": "manual",
+          "profile": {
+            "interactionMode": "edit",
+            "filesystemPolicy": "agent-managed",
+            "commandPolicy": "agent-managed",
+            "networkPolicy": "agent-managed",
+            "approvalPolicy": "on-request",
+            "approvalReviewer": "user"
+          }
+        },
+        {
+          "id": "plan",
+          "kind": "mode",
+          "label": "Plan",
+          "command": "plan",
+          "description": "Claude Code Plan mode: analyzes and plans without editing files; approving a plan does not switch modes, choose Manual to implement.",
+          "profile": {
+            "interactionMode": "plan",
+            "filesystemPolicy": "read-only",
+            "commandPolicy": "disabled",
+            "networkPolicy": "agent-managed",
+            "approvalPolicy": "never",
+            "approvalReviewer": "none"
+          }
+        }
+      ],
+      "operations": [
+        {
+          "id": "dev.aibo.claude-code.operation.command-list",
+          "capability": {
+            "id": "dev.aibo.claude-code.command.list",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "action": {
+                "const": "get"
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 15000,
+          "idempotent": true
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.model-context-window",
+          "capability": {
+            "id": "dev.aibo.claude-code.model.context-window",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "list",
+                  "set"
+                ]
+              },
+              "contextWindow": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 30000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.model-reasoning",
+          "capability": {
+            "id": "dev.aibo.claude-code.model.reasoning",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "list",
+                  "set"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 30000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.model-select",
+          "capability": {
+            "id": "dev.aibo.claude-code.model.select",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "enum": [
+                  "list",
+                  "set"
+                ]
+              },
+              "reference": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "recovery",
+              "capabilities"
+            ]
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 30000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.session.open",
+          "capability": {
+            "id": "aibo.session.open",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "executionProfile"
+            ],
+            "properties": {
+              "mode": {
+                "enum": [
+                  "create",
+                  "resume"
+                ]
+              },
+              "executionProfile": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schema": {
+                    "type": "string"
+                  },
+                  "interactionMode": {
+                    "enum": [
+                      "ask",
+                      "plan",
+                      "edit"
+                    ]
+                  },
+                  "approvalPolicy": {
+                    "type": "string"
+                  },
+                  "approvalReviewer": {
+                    "enum": [
+                      "user",
+                      "auto-review",
+                      "none"
+                    ]
+                  },
+                  "filesystemPolicy": {
+                    "type": "string"
+                  },
+                  "commandPolicy": {
+                    "type": "string"
+                  },
+                  "networkPolicy": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reasoningEffort": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "nativeSessionId",
+              "recovery",
+              "capabilities"
+            ],
+            "properties": {
+              "nativeSessionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "recovery": {
+                "type": "object"
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 120000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.session.turn",
+          "capability": {
+            "id": "aibo.session.turn",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200000
+              },
+              "attachments": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "status",
+              "recovery"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "completed",
+                  "interrupted",
+                  "failed"
+                ]
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 43200000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.session.turn.write",
+          "capability": {
+            "id": "aibo.session.turn.write",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200000
+              },
+              "attachments": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "status",
+              "recovery"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "completed",
+                  "interrupted",
+                  "failed"
+                ]
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          },
+          "effect": "write",
+          "permissions": [
+            "workspace.read",
+            "workspace.write"
+          ],
+          "timeoutMs": 43200000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.session.cancel",
+          "capability": {
+            "id": "aibo.session.cancel",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "accepted"
+            ],
+            "properties": {
+              "accepted": {
+                "const": true
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 15000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.session.close",
+          "capability": {
+            "id": "aibo.session.close",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "accepted"
+            ],
+            "properties": {
+              "accepted": {
+                "const": true
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 15000,
+          "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.approval",
+          "capability": {
+            "id": "dev.aibo.claude-code.approval.respond",
+            "version": "1.0.0"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "requestId",
+              "decision"
+            ],
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "decision": {
+                "enum": [
+                  "accept",
+                  "cancel"
+                ]
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "resolved",
+              "recovery",
+              "capabilities"
+            ],
+            "properties": {
+              "resolved": {
+                "const": true
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 120000,
+          "idempotent": false
+        }
+      ]
+    }
+  ]
+}

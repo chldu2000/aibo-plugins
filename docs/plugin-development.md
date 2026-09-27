@@ -81,7 +81,7 @@ Cursor 的具体映射集中在当前规格，不应复制成其他提供者的�
 支持 Agent Client Protocol 的 Agent 从 [ACP 模板](../plugins/acp-template/) 起步，不需要编写代码：
 在 `plugin.json` 中替换插件 ID、平台与可执行依赖，在 `acp.json` 中填写启动命令、参数和 `ask`/`plan`/`edit` 到原生模式的映射。
 `worker.mjs` 只调用宿主 SDK 0.1.3 的 `serveAcpAgent`，能力按 Agent 的 `initialize` 响应收窄。字段说明见模板 README，
-通用层行为见宿主的 [`@aibo/acp-adapter`](../../aibo/packages/acp-adapter/README.md)。需要厂商扩展方法时参照 Cursor 插件传入 `extension`。
+通用层行为见宿主的 [`@aibo/acp-adapter`](../../aibo/packages/acp-adapter/README.md)。[Claude Code 插件](../plugins/claude-code/) 是按此方式接入的真实例子。需要厂商扩展方法时参照 Cursor 插件传入 `extension`。
 `test/acp-template.test.mjs` 检查模板清单与宿主合同一致；复制模板后保留这类测试。
 
 ## 修改呈现示例

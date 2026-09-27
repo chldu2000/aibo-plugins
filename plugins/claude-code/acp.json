@@ -1,0 +1,8 @@
+{
+  "schema": "aibo.acp-agent/v1",
+  "label": "Claude Code",
+  "command": "claude-agent-acp",
+  "modes": { "plan": "plan", "edit": "default" },
+  "persistsEmptySessions": false,
+  "requestPrefix": "claude"
+}

@@ -42,11 +42,12 @@ export async function buildExternalPlugin() {
   const capability=await buildCapabilityPackage('capability',{compile:true,entry:'dist/worker.js'});
   const cursor=await buildCapabilityPackage('cursor',{entry:'worker.mjs'});
   const acpTemplate=await buildCapabilityPackage('acp-template',{entry:'worker.mjs'});
+  const claudeCode=await buildCapabilityPackage('claude-code',{entry:'worker.mjs'});
   const fakeBin=path.join(root,'fake-bin');await mkdir(fakeBin);
   const fakeAgent=path.join(fakeBin,'agent');
   await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);
   execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin],{cwd:project,stdio:'inherit'});
-  const evidence={externalDirectory:true,offlineSdkTarballs:true,compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability.files,cursor:cursor.files,acpTemplate:acpTemplate.files}};
+  const evidence={externalDirectory:true,offlineSdkTarballs:true,compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability.files,cursor:cursor.files,acpTemplate:acpTemplate.files,claudeCode:claudeCode.files}};
   await writeFile(path.join(root,'build-evidence.json'),JSON.stringify(evidence,null,2));
   const presentationTools = path.join(root, 'presentation-tools');
   await cp(hostPath('packages/presentation-tools'), presentationTools, {recursive:true});
@@ -56,7 +57,7 @@ export async function buildExternalPlugin() {
   const { buildPresentation } = await import(pathToFileURL(path.join(unpackedTools,'build.mjs')).href);
   const presentationPath = path.join(root, 'presentation');
   await buildPresentation(path.join(project,'plugins/presentation/presentation.source.json'), presentationPath);
-  return {capability:capability.packagePath,cursor:cursor.packagePath,acpTemplate:acpTemplate.packagePath,presentation:presentationPath};
+  return {capability:capability.packagePath,cursor:cursor.packagePath,acpTemplate:acpTemplate.packagePath,claudeCode:claudeCode.packagePath,presentation:presentationPath};
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

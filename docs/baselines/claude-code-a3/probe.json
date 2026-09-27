@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "adapterVersion": "0.81.2",
+  "claudeCode": "2.1.280 (Claude Code)",
+  "checks": [
+    "plan session opens through acp.json; capabilities narrowed by the native handshake",
+    "command directory (44) and model catalog read",
+    "plan turn streams the requested reply",
+    "manual write turn asked for approval 1 time(s); the file was written after acceptance",
+    "a new worker process resumes the prompted session with session/load"
+  ],
+  "capabilities": [
+    "session.create",
+    "session.resume",
+    "session.close",
+    "turn.send",
+    "turn.cancel",
+    "stream.text",
+    "approval.respond",
+    "command.list",
+    "image.input",
+    "model.select",
+    "model.reasoning"
+  ],
+  "commands": 44,
+  "models": {
+    "count": 5,
+    "current": "default"
+  },
+  "reasoningLevels": 6,
+  "approvals": [
+    {
+      "kind": "edit",
+      "command": "aibo-probe.txt"
+    }
+  ],
+  "environment": {
+    "platform": "darwin-arm64",
+    "node": "v24.18.0"
+  }
+}
