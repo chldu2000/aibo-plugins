@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, copyFile, cp, writeFile, chmod, readFile } from 'node:f
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { packageRuntime } from './package-runtime.mjs';
 const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const hostPath = (...parts) => path.join(aibo, ...parts);
@@ -30,11 +31,16 @@ export async function buildExternalPlugin() {
     await cp(source,consumer,{recursive:true});
     execFileSync('npm',['install','--save-dev','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar,acpTar],{cwd:consumer,stdio:'pipe'});
     await copyFile(path.join(source,'package.json'),path.join(consumer,'package.json'));
+    if (name === 'claude-code') {
+      if (process.platform !== 'darwin' || process.arch !== 'arm64') throw Error('Claude plugin currently publishes darwin-arm64 only; build on that target');
+      await packageRuntime(path.join(source, 'runtime'), path.join(consumer, 'vendor'), path.join(project, '.npm-cache'));
+    }
     if(compile) execFileSync(process.execPath,[tsc,'-p','tsconfig.json'],{cwd:consumer,stdio:'pipe'});
     const archive=pack(consumer);
     if(!archive.files.some(file=>file.path===entry)) throw Error(`${name} archive is missing its worker`);
     if(archive.files.some(file=>file.path.startsWith('node_modules/@aibo/'))) throw Error('Host SDK must not be bundled');
-    if(archive.files.some(file=>/svelte|\.css$|\.tsx?$/.test(file.path.replace(/\.d\.ts$/,'.types')))) throw Error(`${name} archive contains frontend or uncompiled source`);
+    if(archive.files.some(file=>!file.path.startsWith('vendor/') && /svelte|\.css$|\.tsx?$/.test(file.path.replace(/\.d\.ts$/,'.types')))) throw Error(`${name} archive contains frontend or uncompiled source`);
+    if (archive.files.length > 4096 || archive.unpackedSize > 256 * 1024 * 1024) throw Error(`${name} exceeds host package limits`);
     const packagePath=path.join(root,name);await mkdir(packagePath);
     execFileSync('tar',['-xzf',path.join(consumer,archive.filename),'-C',packagePath,'--strip-components=1']);
     return {packagePath,files:archive.files.map(file=>file.path)};
@@ -43,6 +49,7 @@ export async function buildExternalPlugin() {
   const cursor=await buildCapabilityPackage('cursor',{entry:'worker.mjs'});
   const acpTemplate=await buildCapabilityPackage('acp-template',{entry:'worker.mjs'});
   const claudeCode=await buildCapabilityPackage('claude-code',{entry:'worker.mjs'});
+  execFileSync(process.execPath, [path.join(project, 'scripts/smoke-claude-package.mjs'), claudeCode.packagePath], { cwd: project, stdio: 'inherit' });
   const fakeBin=path.join(root,'fake-bin');await mkdir(fakeBin);
   const fakeAgent=path.join(fakeBin,'agent');
   await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);

@@ -10,6 +10,7 @@
     "build": "node scripts/build.mjs",
     "probe:cursor:desktop": "node scripts/probe-cursor-desktop.mjs",
     "test": "node --import ./scripts/host-sdk.mjs --test test/*.test.mjs",
-    "verify": "pnpm test && pnpm run build"
+    "verify": "pnpm test && pnpm run build",
+    "prepare:deps": "npm ci --prefix plugins/claude-code/runtime --omit=dev --ignore-scripts --no-bin-links --no-audit --no-fund --cache .npm-cache"
   }
 }

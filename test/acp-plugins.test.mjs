@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { acpAgentConfig, extensionFromConfig } from '@aibo/acp-adapter/worker';
 
@@ -34,10 +35,19 @@ test(`${name} is a valid manifest whose operations match the host session contra
   }
 });
 
-test(`${name} acp.json configures the generic worker and every declared mode`, async () => {
+test(`${name} acp.json configures the generic worker and every declared mode`, async t => {
   const manifest = await json(template('plugin.json'));
   const config = acpAgentConfig(await json(template('acp.json')), manifest);
-  const extension = extensionFromConfig(config, manifest);
+  let manifestUrl;
+  if (config.launch) {
+    const directory = await mkdtemp(path.join(tmpdir(), 'aibo-config-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const entry = path.join(directory, config.launch.entry);
+    await mkdir(path.dirname(entry), { recursive: true });
+    await writeFile(entry, '');
+    manifestUrl = pathToFileURL(path.join(directory, 'plugin.json'));
+  }
+  const extension = extensionFromConfig(config, manifest, manifestUrl);
   assert.equal(extension.recoverySchema, `${manifest.pluginId}.recovery`);
   assert.equal(extension.writableMode, config.modes.edit);
   for (const control of manifest.contributions[0].sessionControls) {
@@ -50,7 +60,7 @@ test(`${name} acp.json configures the generic worker and every declared mode`, a
     assert.ok(targets.includes(choice.sessionControl), `${choice.optionId} switches only to a declared transition target`);
     assert.ok(extension.writableModes.includes(choice.mode), `${choice.optionId} switches to a writable mode`);
   }
-  assert.throws(() => acpAgentConfig({ ...config, command: 'sh' }, manifest), /executableDependencies/);
+  assert.throws(() => acpAgentConfig({ ...config, command: 'sh' }, manifest), /executableDependencies|without command/);
 });
 
 test(`${name} ships only the configuration-only worker`, async () => {

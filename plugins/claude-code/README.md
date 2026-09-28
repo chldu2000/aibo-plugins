@@ -2,16 +2,21 @@
 
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
-This plugin is configuration only: `plugin.json`, `acp.json` and the one-line worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.5's `serveAcpAgent`. Release **0.3.0**.
+The integration is configuration only: `plugin.json`, `acp.json` and the one-line worker from the
+[ACP template](../acp-template/), running on host SDK 0.1.6's `serveAcpAgent`. Release **0.4.0**.
 
 ## Requirements
 
-- Aibo with host SDK 0.1.5, Node.js 22 or later.
-- Claude Code installed and signed in (`claude` works in a terminal). The adapter uses that login;
-  Aibo does not store Claude credentials.
-- The adapter on `PATH`: `npm install -g @agentclientprotocol/claude-agent-acp`. Aibo does not install it.
-  Verified with adapter 0.81.2 and Claude Code 2.1.280.
+- Aibo with host SDK 0.1.6 and the bundled Node runtime (this source change; verify your host build).
+- A valid Claude login. Credentials remain owned by Claude; Aibo does not store them.
+- No separate Node, npm or global ACP installation. The darwin-arm64 package includes ACP 0.81.2,
+  its lockfile-pinned production dependencies, and the SDK's native Claude 2.1.280 binary.
+  Authentication provisioning is separate from runtime packaging; a fresh-machine login flow is not added here.
+
+Build dependencies are prepared with `pnpm prepare:deps`, then `pnpm verify` builds offline from the cache.
+`runtime/package-lock.json` pins the full dependency graph. `vendor/` in the release contains JS,
+platform binaries, package metadata, resources and licenses; type files and source maps are omitted.
+The host SDK stays external. Install the generated `dist/build-*/claude-code/`, not this source directory.
 
 ## Modes
 
@@ -55,10 +60,15 @@ inside Claude, and Aibo's model selection is not updated to match.
 
 ## Verification
 
-`node scripts/probe-claude-code.mjs` installs the adapter into a temporary prefix (or uses
-`CLAUDE_AGENT_ACP_BIN`) and runs the plugin's worker against real Claude Code: a Plan session with
+`CLAUDE_PLUGIN_PATH=/absolute/path/to/built/claude-code node scripts/probe-claude-code.mjs`
+runs the packaged worker with the host private Node and no global ACP directory against real Claude Code: a Plan session with
 capabilities, commands and models, a short Plan reply, a Manual write turn approved through Aibo that creates
 a file, an AskUserQuestion answered through Aibo, a Plan turn whose plan approval switches to Manual and then writes a file, and a resume in a new worker
 process. It sends four short prompts. `PROBE_PLAN_CHOICE` picks the plan approval: `manual` (default),
 `auto` or `clear-auto`. Last run: Claude Code 2.1.280 with adapter 0.81.2 (2026-09-27). `PROBE_CONFIG_ONLY=1` stops before
 any prompt.
+
+The build also runs `scripts/smoke-claude-package.mjs`: with empty PATH it starts the packaged Worker,
+negotiates real ACP initialize and executes the package-owned native CLI's `--version`. It sends no model
+requests and does not prove login, permissions, real turns or desktop installation. See
+[packaging validation](../../docs/self-contained-runtime-validation.md) for this change's evidence.

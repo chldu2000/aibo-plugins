@@ -1,6 +1,5 @@
 // Real Claude Code through the configuration-only plugin: plugin.json + acp.json on the host SDK worker.
-// Installs @agentclientprotocol/claude-agent-acp into a temporary prefix unless CLAUDE_AGENT_ACP_BIN names
-// a directory containing `claude-agent-acp`. Uses the local Claude Code login and sends four short prompts.
+// Uses a built self-contained plugin package and the host private Node. Uses the local Claude login.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -11,22 +10,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { aiboRoot } from './host-sdk.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const pluginPath = path.join(project, 'plugins/claude-code');
+if (!process.env.CLAUDE_PLUGIN_PATH) throw Error('Set CLAUDE_PLUGIN_PATH to the built claude-code package directory');
+const pluginPath = path.resolve(process.env.CLAUDE_PLUGIN_PATH);
+const runtimeNode = path.join(aiboRoot, 'src-tauri/resources/node-runtime', process.platform === 'win32' ? 'node.exe' : 'node');
 const manifest = JSON.parse(await readFile(path.join(pluginPath, 'plugin.json'), 'utf8'));
 const contribution = manifest.contributions[0];
 const root = await mkdtemp(path.join(tmpdir(), 'aibo-claude-code-probe-'));
 const workspacePath = path.join(root, 'workspace');
 execFileSync('mkdir', ['-p', workspacePath]);
-let bin = process.env.CLAUDE_AGENT_ACP_BIN;
-if (!bin) {
-  execFileSync('npm', ['install', '--prefix', path.join(root, 'adapter'), '--no-audit', '--no-fund', '--silent', '@agentclientprotocol/claude-agent-acp@0.81.2'], { stdio: 'inherit' });
-  bin = path.join(root, 'adapter/node_modules/.bin');
-}
-const adapterVersion = JSON.parse(await readFile(path.join(bin, '../@agentclientprotocol/claude-agent-acp/package.json'), 'utf8').catch(() => '{"version":"unknown"}')).version;
+const adapterVersion = JSON.parse(await readFile(path.join(pluginPath, 'vendor/node_modules/@agentclientprotocol/claude-agent-acp/package.json'), 'utf8')).version;
 
 function worker(generation) {
-  const child = spawn(process.execPath, ['--import', pathToFileURL(path.join(aiboRoot, 'packages/plugin-host/register.mjs')).href, path.join(pluginPath, 'worker.mjs')],
-    { cwd: root, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` }, stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn(runtimeNode, ['--import', pathToFileURL(path.join(aiboRoot, 'packages/plugin-host/register.mjs')).href, path.join(pluginPath, 'worker.mjs')],
+    { cwd: root, env: { ...process.env, PATH: `${path.dirname(runtimeNode)}${path.delimiter}/usr/bin${path.delimiter}/bin` }, stdio: ['pipe', 'pipe', 'pipe'] });
   let nextId = 0, stderr = '';
   const pending = new Map(), events = [], listeners = new Set();
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8000); });
@@ -54,7 +50,7 @@ const profile = mode => mode === 'plan'
   : { schema: 'aibo.execution-profile/v1', interactionMode: 'edit', filesystemPolicy: 'agent-managed', commandPolicy: 'agent-managed', networkPolicy: 'agent-managed', approvalPolicy: 'on-request', approvalReviewer: 'user', model: null, reasoningEffort: null };
 const text = w => w.events.filter(entry => entry.event.type === 'message.completed').map(entry => entry.event.payload.text).join('\n');
 const feature = name => `${manifest.pluginId}.${name}`;
-const result = { ok: false, adapterVersion, claudeCode: execFileSync('claude', ['--version'], { encoding: 'utf8' }).trim(), checks: [] };
+const result = { ok: false, adapterVersion, claudeCode: JSON.parse(await readFile(path.join(pluginPath, 'vendor/node_modules/@anthropic-ai/claude-agent-sdk/package.json'), 'utf8')).claudeCodeVersion, checks: [] };
 try {
   const first = worker(1);
   assert.equal((await first.init()).protocol, '2.1');

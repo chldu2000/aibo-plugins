@@ -34,9 +34,10 @@ Cursor 当前为 0.2.1；0.1.15 起的原生权限声明需要包含 migration 0
 ## 环境与构建
 
 需要 Node.js 22+、pnpm、npm、tar。默认宿主路径为 `../aibo`，先在宿主运行 `pnpm install`。
-本仓库根目录没有第三方依赖，无需先安装。从本仓库根目录执行：
+宿主先运行 `pnpm prepare:node`。Claude 插件的构建依赖先执行 `pnpm prepare:deps` 下载并按 lockfile 缓存；后续构建离线完成。从本仓库根目录执行：
 
 ```sh
+pnpm prepare:deps
 pnpm run verify
 # 使用其他宿主源码位置
 AIBO_ROOT=/absolute/path/to/aibo pnpm run verify
@@ -140,3 +141,12 @@ Cursor 使用[验收清单](cursor-acp-checklist.md)记录剩余门槛；旧勾�
 SDK 0.1.1 提供 `@aibo/capability-runtime/host-tools`。新增 Agent 插件声明版本化目录与标准
 response 操作后，只需适配原生工具注册或 MCP 配置；完整查询由宿主处理，无需新增品牌分支。
 见[宿主工具接入合同](../../aibo/docs/session-history-tool-design.md)和 Cursor 0.1.18 示例。
+
+## 自包含运行依赖
+
+Claude 0.4.0 要求 SDK 0.1.6，使用 `acp.json.launch = { kind: "node", entry: "vendor/.../index.js" }`。
+外部 command 与包内 launch 二选一。构建阶段 npm ci 固定完整依赖集合，保留原生可选依赖，
+去掉类型文件和 source map；产物不含符号链接，不超过宿主 4096 文件/256 MiB 限制。
+宿主不预装 ACP、不执行 npm、不改写插件依赖版本。插件 Worker 和 ACP 共用宿主私有 Node。
+目前 Claude 发布目标仍为 darwin-arm64，构建需在该平台执行；新目标需单独构建并验证原生依赖。
+升级依赖时更新 `plugins/claude-code/runtime` 的 package.json 和 lockfile，再重新准备缓存和验收。

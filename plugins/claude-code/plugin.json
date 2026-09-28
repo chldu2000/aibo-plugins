@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.claude-code",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "displayName": "Claude Code",
   "description": "Claude Code sessions through the Agent Client Protocol adapter (claude-agent-acp). Configuration only.",
   "hostSdk": {
-    "min": "0.1.5",
+    "min": "0.1.6",
     "maxExclusive": "0.2.0"
   },
   "host": {
@@ -29,11 +29,6 @@
       "kind": "runtime",
       "name": "node",
       "versionRange": ">=22",
-      "required": true
-    },
-    {
-      "kind": "executable",
-      "name": "claude-agent-acp",
       "required": true
     }
   ],

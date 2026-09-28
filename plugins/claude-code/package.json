@@ -1,13 +1,14 @@
 {
   "name": "aibo-claude-code",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "files": [
     "plugin.json",
     "acp.json",
     "worker.mjs",
-    "README.md"
+    "README.md",
+    "vendor"
   ],
   "devDependencies": {
     "@aibo/acp-adapter": "0.1.1",
