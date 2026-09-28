@@ -219,3 +219,7 @@ workspaceId/workspacePath、protocolVersion、modeId、hasPrompt，以及可选 
 返回 allow_once；不用标题/描述推断工具身份。完成、重复、跨会话、缺失结构化元数据及
 其他 server 请求不走该路径。宿主仍再次校验引用归属和信任；永久允许不会被自动选中。
 其他原生工具保留 Ask/Plan 拒绝、Agent 用户审批的行为，executionPolicy 仍为 agent-managed。
+
+## 模型参数范围（0.2.3）
+
+SDK >=0.1.7；`model.select` 使用带 `parameterScope` 的合同变体，声明 `current-model`。宿主先确认模型再刷新推理/上下文选项；Auto 的空参数不代表其他模型不支持。旧 release 绑定不变。

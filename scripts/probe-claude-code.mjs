@@ -61,13 +61,27 @@ try {
   result.commands = (await first.invoke(feature('command.list'), { action: 'get' })).commands.length;
   if (planned.capabilities.includes('model.select')) {
     const models = await first.invoke(feature('model.select'), { action: 'list' });
-    result.models = { count: models.models.length, current: models.current };
+    assert.equal(models.parameterScope, 'current-model');
+    result.models = { count: models.models.length, current: models.current, parameterScope: models.parameterScope };
   }
   if (planned.capabilities.includes('model.reasoning')) result.reasoningLevels = (await first.invoke(feature('model.reasoning'), { action: 'list' })).levels.length;
   if (planned.capabilities.includes('model.context-window')) result.contextWindows = (await first.invoke(feature('model.context-window'), { action: 'list' })).contextWindows.length;
   result.checks.push(`command directory (${result.commands}) and model catalog read`);
   // PROBE_CONFIG_ONLY=1 stops before any prompt, so it spends no model usage.
-  if (process.env.PROBE_CONFIG_ONLY === '1') { result.ok = true; await first.close(); throw null; }
+  if (process.env.PROBE_CONFIG_ONLY === '1') {
+    const original = await first.invoke(feature('model.select'), { action: 'list' });
+    const other = original.models.find(model => model.reference !== original.current);
+    if (other) {
+      const selected = await first.invoke(feature('model.select'), { action: 'set', reference: other.reference });
+      assert.equal(selected.current, other.reference);
+      assert.equal(selected.parameterScope, 'current-model');
+      assert.ok(selected.models.filter(model => model.reference !== selected.current).every(model => model.reasoningEfforts.length === 0));
+      const restored = await first.invoke(feature('model.select'), { action: 'set', reference: original.current });
+      assert.equal(restored.current, original.current);
+      result.checks.push('current-model scope survives real model switches and parameter options remain isolated');
+    }
+    result.ok = true; await first.close(); throw null;
+  }
   assert.equal((await first.invoke('aibo.session.turn', { text: 'Reply with exactly: AIBO_CLAUDE_OK' }, 'plan-turn')).status, 'completed');
   assert.match(text(first), /AIBO_CLAUDE_OK/);
   result.checks.push('plan turn streams the requested reply');

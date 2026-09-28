@@ -54,6 +54,7 @@ export const cursorExtension = {
   clientMeta: { parameterizedModelPicker: true },
   // Cursor's picker extension exposes parameters per model, so both are claimed up front.
   parameterizedPicker: true,
+  parameterScope: 'current-model',
   authMethodId: 'cursor_login',
   recoverySchema: 'dev.aibo.cursor.recovery',
   namespace: NAMESPACE,

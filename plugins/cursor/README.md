@@ -1,7 +1,7 @@
 # Aibo Cursor Agent
 
 This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.2.2**. Implementation details and historical acceptance results live in the repository's
+This page describes release **0.2.3**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
 
 Release 0.2.2 runs on the host SDK's generic ACP Worker (`serveAcpAgent` from `@aibo/acp-adapter/worker`,
@@ -136,3 +136,5 @@ stdio child's environment and are recreated after restart; they are not saved in
 Cursor may discover MCP tools lazily on the first prompt, so open does not wait for `tools/list`.
 This does not configure global MCP servers or auto-approve unrelated tools. Host history reads do
 not enable Aibo Core filesystem/command tools. Old releases without the catalog continue normally.
+
+Release 0.2.3 requires host SDK 0.1.7 and declares `parameterScope: current-model`. Aibo selects a model before offering its reasoning and context options. Auto may have no parameter options.

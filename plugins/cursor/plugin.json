@@ -1,10 +1,10 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.cursor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "displayName": "Cursor",
   "description": "Cursor Agent sessions through the official ACP interface.",
-  "hostSdk": { "min": "0.1.3", "maxExclusive": "0.2.0" },
+  "hostSdk": { "min": "0.1.7", "maxExclusive": "0.2.0" },
   "host": { "min": "0.1.0", "maxExclusive": "0.2.0" },
   "platforms": ["darwin-arm64"],
   "protocols": { "runtime": { "min": "2.1", "max": "2.1" } },
@@ -278,11 +278,18 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "parameterScope": {
+                "enum": [
+                  "all-models",
+                  "current-model"
+                ]
               }
             },
             "required": [
               "recovery",
-              "capabilities"
+              "capabilities",
+              "parameterScope"
             ]
           },
           "effect": "read",

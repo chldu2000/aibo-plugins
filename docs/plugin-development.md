@@ -150,3 +150,7 @@ Claude 0.4.0 要求 SDK 0.1.6，使用 `acp.json.launch = { kind: "node", entry:
 宿主不预装 ACP、不执行 npm、不改写插件依赖版本。插件 Worker 和 ACP 共用宿主私有 Node。
 目前 Claude 发布目标仍为 darwin-arm64，构建需在该平台执行；新目标需单独构建并验证原生依赖。
 升级依赖时更新 `plugins/claude-code/runtime` 的 package.json 和 lockfile，再重新准备缓存和验收。
+
+## 顺序选择模型与参数
+
+Claude Code 0.4.1 与 Cursor 0.2.3 要求 hostSdk >=0.1.7，并使用 model.select 新输出变体声明 `parameterScope: current-model`。配置式插件写在 acp.json，代码插件写在 AcpExtension；完整合同及旧版本缺省行为见[模型配置](../../aibo/docs/model-configuration.md)。升级后新建会话使用新 release，既有会话不重绑。

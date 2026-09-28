@@ -14,6 +14,7 @@ try {
   const opened = await session.open({ ...open, mode: 'create' });
   assert.ok(opened.capabilities.includes('model.select'));
   const catalog = await session.models({ action: 'list' });
+  assert.equal(catalog.parameterScope, 'current-model');
   original = catalog.current;
   const auto = catalog.models.find(model => model.reference === 'auto' || model.displayName.toLowerCase() === 'auto');
   assert.ok(auto, 'Cursor must return its real Auto option');
@@ -38,7 +39,7 @@ try {
   await session.open({ ...open, mode: 'resume', recovery });
   const resumed = await session.models({ action: 'list' });
   assert.equal(resumed.current, auto.reference);
-  console.log(JSON.stringify({ ok: true, modelCount: catalog.models.length, auto: auto.reference, selected: resumed.current, switched: Boolean(other), resumed: true, promptStatus }));
+  console.log(JSON.stringify({ ok: true, parameterScope: catalog.parameterScope, modelCount: catalog.models.length, auto: auto.reference, selected: resumed.current, switched: Boolean(other), resumed: true, promptStatus }));
 } finally {
   try { if (original && session.phase === 'ready') await session.models({ action: 'set', reference: original }); }
   finally { await session.close(); await rm(workspacePath, { recursive: true, force: true }); }

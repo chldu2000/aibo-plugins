@@ -3,11 +3,11 @@
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
 The integration is configuration only: `plugin.json`, `acp.json` and the one-line worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.6's `serveAcpAgent`. Release **0.4.0**.
+[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. Release **0.4.1**.
 
 ## Requirements
 
-- Aibo with host SDK 0.1.6 and the bundled Node runtime (this source change; verify your host build).
+- Aibo with host SDK 0.1.7 and the bundled Node runtime (this source change; verify your host build).
 - A valid Claude login. Credentials remain owned by Claude; Aibo does not store them.
 - No separate Node, npm or global ACP installation. The darwin-arm64 package includes ACP 0.81.2,
   its lockfile-pinned production dependencies, and the SDK's native Claude 2.1.280 binary.
@@ -72,3 +72,5 @@ The build also runs `scripts/smoke-claude-package.mjs`: with empty PATH it start
 negotiates real ACP initialize and executes the package-owned native CLI's `--version`. It sends no model
 requests and does not prove login, permissions, real turns or desktop installation. See
 [packaging validation](../../docs/self-contained-runtime-validation.md) for this change's evidence.
+
+Release 0.4.1 declares `parameterScope: current-model`. Aibo selects the model first, refreshes its native parameters, and then offers reasoning strength. Only labels are displayed; parameter IDs remain opaque. Requires host SDK 0.1.7.

@@ -38,5 +38,6 @@
   "launch": {
     "kind": "node",
     "entry": "vendor/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js"
-  }
+  },
+  "parameterScope": "current-model"
 }

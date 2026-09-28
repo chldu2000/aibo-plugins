@@ -48,6 +48,10 @@ test(`${name} acp.json configures the generic worker and every declared mode`, a
     manifestUrl = pathToFileURL(path.join(directory, 'plugin.json'));
   }
   const extension = extensionFromConfig(config, manifest, manifestUrl);
+  if (name === 'claude-code') {
+    assert.equal(extension.parameterScope, 'current-model');
+    assert.throws(() => acpAgentConfig({ ...config, parameterScope: 'all-models' }, manifest), /parameterScope/);
+  }
   assert.equal(extension.recoverySchema, `${manifest.pluginId}.recovery`);
   assert.equal(extension.writableMode, config.modes.edit);
   for (const control of manifest.contributions[0].sessionControls) {

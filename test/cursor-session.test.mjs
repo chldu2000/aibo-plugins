@@ -306,6 +306,7 @@ test('model catalog preserves Auto and premium choices; selection affects the ne
   assert.ok(opened.capabilities.includes('model.select'));
   const catalog = await session.models({ action: 'list' });
   assert.equal(catalog.current, 'auto');
+  assert.equal(catalog.parameterScope, 'current-model');
   await assert.rejects(session.models({action:'set'}), /not in the session catalog/);
   assert.deepEqual(catalog.models.map(model => model.displayName), ['Auto', 'Premium']);
   assert.equal((await session.models({ action: 'set', reference: 'premium' })).current, 'premium');

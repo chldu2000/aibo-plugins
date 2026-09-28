@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.claude-code",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "displayName": "Claude Code",
   "description": "Claude Code sessions through the Agent Client Protocol adapter (claude-agent-acp). Configuration only.",
   "hostSdk": {
-    "min": "0.1.6",
+    "min": "0.1.7",
     "maxExclusive": "0.2.0"
   },
   "host": {
@@ -280,11 +280,18 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "parameterScope": {
+                "enum": [
+                  "all-models",
+                  "current-model"
+                ]
               }
             },
             "required": [
               "recovery",
-              "capabilities"
+              "capabilities",
+              "parameterScope"
             ]
           },
           "effect": "read",
