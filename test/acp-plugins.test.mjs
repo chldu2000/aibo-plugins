@@ -50,6 +50,9 @@ test(`${name} acp.json configures the generic worker and every declared mode`, a
   const extension = extensionFromConfig(config, manifest, manifestUrl);
   if (name === 'claude-code') {
     assert.equal(extension.parameterScope, 'current-model');
+    assert.equal(config.launch.entry, 'launch-acp.mjs');
+    assert.ok(manifest.executableDependencies.some(item => item.name === 'claude' && item.required && item.versionRange === '>=2.1.280'));
+    assert.ok((await json(template('package.json'))).files.includes(config.launch.entry));
     assert.throws(() => acpAgentConfig({ ...config, parameterScope: 'all-models' }, manifest), /parameterScope/);
   }
   assert.equal(extension.recoverySchema, `${manifest.pluginId}.recovery`);
@@ -67,7 +70,7 @@ test(`${name} acp.json configures the generic worker and every declared mode`, a
   assert.throws(() => acpAgentConfig({ ...config, command: 'sh' }, manifest), /executableDependencies|without command/);
 });
 
-test(`${name} ships only the configuration-only worker`, async () => {
+test(`${name} uses the shared configuration-driven worker`, async () => {
   assert.equal(await readFile(template('worker.mjs'), 'utf8'), await readFile(path.join(project, 'plugins/acp-template/worker.mjs'), 'utf8'));
 });
 }

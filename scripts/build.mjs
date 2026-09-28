@@ -28,7 +28,7 @@ export async function buildExternalPlugin() {
   const acpTar=path.join(acp,pack(acp).filename);
   async function buildCapabilityPackage(name,{compile=false,entry}) {
     const source=path.join(project,'plugins',name),consumer=path.join(root,`${name}-consumer`);
-    await cp(source,consumer,{recursive:true});
+    await cp(source,consumer,{recursive:true,filter:file=>path.basename(file)!=='node_modules'});
     execFileSync('npm',['install','--save-dev','--offline','--ignore-scripts','--no-audit','--no-fund','--cache',cache,protocolTar,sdkTar,acpTar],{cwd:consumer,stdio:'pipe'});
     await copyFile(path.join(source,'package.json'),path.join(consumer,'package.json'));
     if (name === 'claude-code') {
@@ -41,6 +41,8 @@ export async function buildExternalPlugin() {
     if(archive.files.some(file=>file.path.startsWith('node_modules/@aibo/'))) throw Error('Host SDK must not be bundled');
     if(archive.files.some(file=>!file.path.startsWith('vendor/') && /svelte|\.css$|\.tsx?$/.test(file.path.replace(/\.d\.ts$/,'.types')))) throw Error(`${name} archive contains frontend or uncompiled source`);
     if (archive.files.length > 4096 || archive.unpackedSize > 256 * 1024 * 1024) throw Error(`${name} exceeds host package limits`);
+    if (name === 'claude-code' && (archive.files.some(file => /node_modules\/@anthropic-ai\/claude-agent-sdk-(darwin|linux|win32)-/.test(file.path) || /\/(claude|claude\.exe)$/.test(file.path))
+        || archive.unpackedSize > 32 * 1024 * 1024)) throw Error('Claude plugin must remain a JS adapter package without a bundled Claude executable');
     const packagePath=path.join(root,name);await mkdir(packagePath);
     execFileSync('tar',['-xzf',path.join(consumer,archive.filename),'-C',packagePath,'--strip-components=1']);
     return {packagePath,files:archive.files.map(file=>file.path)};

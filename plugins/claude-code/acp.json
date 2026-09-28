@@ -37,7 +37,7 @@
   "elicitation": true,
   "launch": {
     "kind": "node",
-    "entry": "vendor/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js"
+    "entry": "launch-acp.mjs"
   },
   "parameterScope": "current-model"
 }

@@ -2,13 +2,13 @@ import { cp, lstat, readdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-/** Ship the locked production graph, including native optional dependencies and licenses. */
+/** Ship the locked JS production graph and licenses; Claude itself is installed by the user. */
 export async function packageRuntime(source, destination, cache) {
   await cp(source, destination, { recursive: true, filter: file => path.basename(file) !== 'node_modules' });
-  execFileSync('npm', ['ci', '--offline', '--omit=dev', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund', '--cache', cache],
+  execFileSync('npm', ['ci', '--offline', '--omit=dev', '--omit=optional', '--ignore-scripts', '--no-bin-links', '--no-audit', '--no-fund', '--cache', cache],
     { cwd: destination, stdio: 'pipe' });
   // Types and source maps are not runtime inputs. Avoid archive size/file limits.
-  // Keep package.json, JS, native binaries, data resources, READMEs and licenses.
+  // Keep package.json, JS, data resources, READMEs and licenses.
   const { rm } = await import('node:fs/promises');
   async function prune(directory) {
     for (const name of await readdir(directory)) {

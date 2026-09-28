@@ -144,12 +144,16 @@ response 操作后，只需适配原生工具注册或 MCP 配置；完整查询
 
 ## 自包含运行依赖
 
-Claude 0.4.0 要求 SDK 0.1.6，使用 `acp.json.launch = { kind: "node", entry: "vendor/.../index.js" }`。
-外部 command 与包内 launch 二选一。构建阶段 npm ci 固定完整依赖集合，保留原生可选依赖，
-去掉类型文件和 source map；产物不含符号链接，不超过宿主 4096 文件/256 MiB 限制。
-宿主不预装 ACP、不执行 npm、不改写插件依赖版本。插件 Worker 和 ACP 共用宿主私有 Node。
-目前 Claude 发布目标仍为 darwin-arm64，构建需在该平台执行；新目标需单独构建并验证原生依赖。
-升级依赖时更新 `plugins/claude-code/runtime` 的 package.json 和 lockfile，再重新准备缓存和验收。
+Claude 0.4.2 要求 SDK 0.1.7，使用包内 `launch-acp.mjs` 启动器，按宿主 PATH 查找用户安装的
+`claude`，通过 `CLAUDE_CODE_EXECUTABLE` 交给 ACP。清单声明必需的 Claude Code >=2.1.280。
+ACP 和 SDK 的 JavaScript 依赖仍由插件携带，用户无需另装 Node、npm 或全局 ACP。
+
+准备及构建使用 `npm ci --omit=dev --omit=optional`，排除 SDK 原生可选包；lockfile 保留其元数据。
+去掉类型文件和 source map，保留 JS、资源和许可证。产物不得包含原生 Claude 可执行文件，
+且解包大小不得超过 32 MiB；宿主原有 4096 文件/256 MiB 限制仍适用。
+宿主安装不运行 npm；Worker 和 ACP 共用宿主私有 Node。当前只发布 darwin-arm64，其他平台尚未验收。
+升级依赖时更新 runtime package.json 和 lockfile，并验证与用户 CLI 版本的兼容性。
+0.4.0/0.4.1 的完整原生程序打包记录属于历史版本；旧会话继续绑定旧 release。
 
 ## 顺序选择模型与参数
 

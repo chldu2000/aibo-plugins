@@ -1,5 +1,5 @@
 // Real Claude Code through the configuration-only plugin: plugin.json + acp.json on the host SDK worker.
-// Uses a built self-contained plugin package and the host private Node. Uses the local Claude login.
+// Uses a packaged ACP adapter, host private Node and the locally installed Claude CLI and login.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -18,11 +18,14 @@ const contribution = manifest.contributions[0];
 const root = await mkdtemp(path.join(tmpdir(), 'aibo-claude-code-probe-'));
 const workspacePath = path.join(root, 'workspace');
 execFileSync('mkdir', ['-p', workspacePath]);
+const { resolveClaudeExecutable } = await import(pathToFileURL(path.join(pluginPath, 'launch-acp.mjs')));
+const claudeExecutable = resolveClaudeExecutable();
+const claudeVersion = execFileSync(claudeExecutable, ['--version'], { encoding: 'utf8', timeout: 30_000 }).trim();
 const adapterVersion = JSON.parse(await readFile(path.join(pluginPath, 'vendor/node_modules/@agentclientprotocol/claude-agent-acp/package.json'), 'utf8')).version;
 
 function worker(generation) {
   const child = spawn(runtimeNode, ['--import', pathToFileURL(path.join(aiboRoot, 'packages/plugin-host/register.mjs')).href, path.join(pluginPath, 'worker.mjs')],
-    { cwd: root, env: { ...process.env, PATH: `${path.dirname(runtimeNode)}${path.delimiter}/usr/bin${path.delimiter}/bin` }, stdio: ['pipe', 'pipe', 'pipe'] });
+    { cwd: root, env: { ...process.env, PATH: `${path.dirname(runtimeNode)}${path.delimiter}${path.dirname(claudeExecutable)}${path.delimiter}${process.env.PATH ?? ''}` }, stdio: ['pipe', 'pipe', 'pipe'] });
   let nextId = 0, stderr = '';
   const pending = new Map(), events = [], listeners = new Set();
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-8000); });
@@ -50,7 +53,7 @@ const profile = mode => mode === 'plan'
   : { schema: 'aibo.execution-profile/v1', interactionMode: 'edit', filesystemPolicy: 'agent-managed', commandPolicy: 'agent-managed', networkPolicy: 'agent-managed', approvalPolicy: 'on-request', approvalReviewer: 'user', model: null, reasoningEffort: null };
 const text = w => w.events.filter(entry => entry.event.type === 'message.completed').map(entry => entry.event.payload.text).join('\n');
 const feature = name => `${manifest.pluginId}.${name}`;
-const result = { ok: false, adapterVersion, claudeCode: JSON.parse(await readFile(path.join(pluginPath, 'vendor/node_modules/@anthropic-ai/claude-agent-sdk/package.json'), 'utf8')).claudeCodeVersion, checks: [] };
+const result = { ok: false, adapterVersion, claudeCode: claudeVersion, externalClaude: true, checks: [] };
 try {
   const first = worker(1);
   assert.equal((await first.init()).protocol, '2.1');

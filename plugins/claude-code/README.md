@@ -2,20 +2,20 @@
 
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
-The integration is configuration only: `plugin.json`, `acp.json` and the one-line worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. Release **0.4.1**.
+The plugin uses `plugin.json`, `acp.json` and the common worker from the
+[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.2**.
 
 ## Requirements
 
 - Aibo with host SDK 0.1.7 and the bundled Node runtime (this source change; verify your host build).
-- A valid Claude login. Credentials remain owned by Claude; Aibo does not store them.
-- No separate Node, npm or global ACP installation. The darwin-arm64 package includes ACP 0.81.2,
-  its lockfile-pinned production dependencies, and the SDK's native Claude 2.1.280 binary.
-  Authentication provisioning is separate from runtime packaging; a fresh-machine login flow is not added here.
+- Install Claude Code **2.1.280 or later** separately and complete its login. Run `claude --version` to check the installation. Credentials remain owned by Claude; Aibo does not store them.
+- The required `claude` dependency must be discoverable by Aibo. The host includes common install locations such as `~/.local/bin` and Homebrew paths; custom locations must be on its PATH.
+- No separate Node, npm or global ACP installation is required by the plugin. It packages ACP 0.81.2 and the JavaScript SDK dependencies, **without the native Claude executable**.
+- Missing or older Claude installations block plugin activation through the host's dependency diagnostics. `launch-acp.mjs` resolves `claude` from the host PATH and sets ACP's `CLAUDE_CODE_EXECUTABLE`; it does not fall back to a bundled engine or inherit an unrelated override.
+- The minimum matches the tested SDK/CLI pair. Newer user-installed CLI releases are not pinned by the plugin and may require compatibility updates.
 
 Build dependencies are prepared with `pnpm prepare:deps`, then `pnpm verify` builds offline from the cache.
-`runtime/package-lock.json` pins the full dependency graph. `vendor/` in the release contains JS,
-platform binaries, package metadata, resources and licenses; type files and source maps are omitted.
+`runtime/package-lock.json` pins the dependency graph. Build and preparation use `--omit=optional` to exclude the SDK's native platform packages; lockfile records for those optional packages remain for reproducibility. `vendor/` contains JS, package metadata, resources and licenses; type files and source maps are omitted. Packaging checks reject native Claude files and packages over 32 MiB.
 The host SDK stays external. Install the generated `dist/build-*/claude-code/`, not this source directory.
 
 ## Modes
@@ -68,9 +68,12 @@ process. It sends four short prompts. `PROBE_PLAN_CHOICE` picks the plan approva
 `auto` or `clear-auto`. Last run: Claude Code 2.1.280 with adapter 0.81.2 (2026-09-27). `PROBE_CONFIG_ONLY=1` stops before
 any prompt.
 
-The build also runs `scripts/smoke-claude-package.mjs`: with empty PATH it starts the packaged Worker,
-negotiates real ACP initialize and executes the package-owned native CLI's `--version`. It sends no model
-requests and does not prove login, permissions, real turns or desktop installation. See
-[packaging validation](../../docs/self-contained-runtime-validation.md) for this change's evidence.
+The build also runs `scripts/smoke-claude-package.mjs`: with empty PATH it starts the packaged Worker
+and checks the launcher's missing-CLI guidance. With a temporary fake external CLI it verifies delegation
+and negotiates real ACP initialize. It rejects bundled native SDK packages. It sends no model requests
+and does not prove login, permissions, real turns or desktop installation. See
+[packaging validation](../../docs/claude-external-runtime-validation.md) for this change's evidence.
 
 Release 0.4.1 declares `parameterScope: current-model`. Aibo selects the model first, refreshes its native parameters, and then offers reasoning strength. Only labels are displayed; parameter IDs remain opaque. Requires host SDK 0.1.7.
+
+Release 0.4.2 changes the runtime requirement: install Claude Code yourself. Install this as a new release; existing sessions remain bound to their original plugin and do not automatically switch engines.
