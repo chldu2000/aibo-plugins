@@ -3,7 +3,7 @@
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
 The plugin uses `plugin.json`, `acp.json` and the common worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.2**.
+[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.3**.
 
 ## Requirements
 
