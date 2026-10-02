@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { acpAgentConfig, extensionFromConfig } from '@aibo/acp-adapter/worker';
+import { acpAgentConfig, extensionFromConfig } from '@aibolabs/acp-adapter/worker';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));

@@ -11,7 +11,7 @@ Cursor 专用行为见[当前规格](cursor-acp-spec.md)，历史测试结果见
 | `plugins/capability/` | application scope 只读能力与 detail 语义视图 | [宿主插件指南](../../aibo/docs/plugin-development_zh.md) |
 | `plugins/cursor/` | Cursor ACP 会话提供者 | [插件说明](../plugins/cursor/README.md)、[当前规格](cursor-acp-spec.md)、[验收清单](cursor-acp-checklist.md) |
 | `plugins/presentation/` | Ocean 主题、AgentStatusMark 控件 | [呈现包合同](../../aibo/docs/presentation-package.md) |
-| `scripts/build.mjs` | 离线 SDK、独立构建副本及三个安装目录 | [宿主 SDK](../../aibo/docs/host-sdk.md) |
+| `scripts/build.mjs` | npm SDK（或 `AIBO_SDK=local` 源码 SDK）、独立构建副本及安装目录 | [宿主 SDK](../../aibo/docs/host-sdk.md) |
 
 本文的跨仓库链接假设 `aibo-plugins` 和 `aibo` 并排检出；使用 `AIBO_ROOT` 时，
 在指定宿主的对应路径查阅。宿主私有 helper 和内置引擎只能作为行为参考，不能随插件导入。
@@ -23,7 +23,7 @@ Cursor 专用行为见[当前规格](cursor-acp-spec.md)，历史测试结果见
 | 能力清单 | `aibo.plugin-manifest/v2`；host 范围和 platforms 以各包清单为准 |
 | Runtime | 能力示例 2.0；Cursor 显式 2.1，支持流式事件与 control |
 | 语义视图 | 能力示例 1.0 / `aibo.semantic-view/v1` |
-| 宿主 SDK | 能力示例要求 `hostSdk >=0.1.0 <0.2.0`；Cursor 0.2.1 要求 `>=0.1.2 <0.2.0`，宿主须实现公开 SDK 加载 |
+| 宿主 SDK | 全部插件导入 `@aibolabs/*`，要求 `hostSdk >=0.1.8 <0.2.0`；SDK 开发依赖为同版本的 `@aibolabs/*` 0.1.8 |
 | 呈现 | `aibo.presentation-package/v1`，hostApi/coreSemantics 1.0.0；还需核对实际快照和动作合同 |
 | Cursor 会话 | 精确可选功能合同、provider `sessionControls`、`agent-managed` 权限归属及 `image.input` 附件合同 |
 
@@ -33,20 +33,24 @@ Cursor 当前为 0.2.1；0.1.15 起的原生权限声明需要包含 migration 0
 
 ## 环境与构建
 
-需要 Node.js 22+、pnpm、npm、tar。默认宿主路径为 `../aibo`，先在宿主运行 `pnpm install`。
-宿主先运行 `pnpm prepare:node`。Claude 插件的构建依赖先执行 `pnpm prepare:deps` 下载并按 lockfile 缓存；后续构建离线完成。从本仓库根目录执行：
+需要 Node.js 22+、pnpm、npm、tar。测试与 smoke 通过宿主 SDK resolver 模拟运行时，默认宿主路径为 `../aibo`，
+先在宿主运行 `pnpm install`。Claude 插件的构建依赖先执行 `pnpm prepare:deps` 下载并按 lockfile 缓存。从本仓库根目录执行：
 
 ```sh
+pnpm install
 pnpm prepare:deps
 pnpm run verify
 # 使用其他宿主源码位置
 AIBO_ROOT=/absolute/path/to/aibo pnpm run verify
+# 使用宿主源码中尚未发布的 SDK
+AIBO_SDK=local pnpm run verify
 ```
 
 `verify` 运行测试和构建；仅生成产物可用 `pnpm run build`。
-构建器使用目标宿主的 TypeScript 编译器，打包本地 protocol/runtime SDK tarball，
-离线安装到独立构建副本作为开发依赖，然后编译能力示例；Cursor 的 `.mjs` 直接打包。
-呈现工具同样先本地打包，再生成资源长度与 SHA-256。SDK 尚未公开发布，不从公网安装同名包。
+构建器在独立构建副本中按各插件的 `package-lock.json` 执行 `npm ci`，从 npm 安装 `@aibolabs/*` 开发依赖
+（项目 `.npmrc` 与构建参数固定该 scope 使用 `https://registry.npmjs.org/`），用本项目的 TypeScript 编译能力示例；
+Cursor 的 `.mjs` 直接打包。呈现工具使用本项目依赖中的 `@aibolabs/presentation-tools`，生成资源长度与 SHA-256。
+`AIBO_SDK=local` 时改为从宿主源码打包 SDK 与呈现工具 tarball，离线安装，用于验证未发布的 SDK 改动。
 
 每次构建创建 `dist/build-*`，最后输出三个安装目录的绝对路径：
 
@@ -54,7 +58,7 @@ AIBO_ROOT=/absolute/path/to/aibo pnpm run verify
 - `cursor/`：Cursor 清单及 Worker 模块。
 - `presentation/`：生成的 `presentation.json` 及已声明资源。
 
-其他目录和归档为构建副本、SDK 和检查证据。安装产物不携带 `node_modules/@aibo`，
+其他目录和归档为构建副本、SDK 和检查证据。安装产物不携带 `node_modules/@aibolabs`，
 运行时由宿主提供公开 SDK；本地 Worker smoke 使用宿主 preload。使用 bundler 时将 SDK 入口设为 external。
 第三方运行库须自行 bundle 或显式包含在安装产物中；仅写 dependencies 或执行 `npm pack`
 不会自动补齐文件，Aibo 安装时不执行 `npm install`。检查解包后的依赖、路径和符号链接。
@@ -82,7 +86,7 @@ Cursor 的具体映射集中在当前规格，不应复制成其他提供者的�
 支持 Agent Client Protocol 的 Agent 从 [ACP 模板](../plugins/acp-template/) 起步，不需要编写代码：
 在 `plugin.json` 中替换插件 ID、平台与可执行依赖，在 `acp.json` 中填写启动命令、参数和 `ask`/`plan`/`edit` 到原生模式的映射。
 `worker.mjs` 只调用宿主 SDK 0.1.3 的 `serveAcpAgent`，能力按 Agent 的 `initialize` 响应收窄。字段说明见模板 README，
-通用层行为见宿主的 [`@aibo/acp-adapter`](../../aibo/packages/acp-adapter/README.md)。[Claude Code 插件](../plugins/claude-code/) 是按此方式接入的真实例子。需要厂商扩展方法时参照 Cursor 插件传入 `extension`。
+通用层行为见宿主的 [`@aibolabs/acp-adapter`](../../aibo/packages/acp-adapter/README.md)。[Claude Code 插件](../plugins/claude-code/) 是按此方式接入的真实例子。需要厂商扩展方法时参照 Cursor 插件传入 `extension`。
 `test/acp-template.test.mjs` 检查模板清单与宿主合同一致；复制模板后保留这类测试。
 
 ## 修改呈现示例
@@ -138,7 +142,7 @@ Cursor 使用[验收清单](cursor-acp-checklist.md)记录剩余门槛；旧勾�
 
 ## 通用宿主工具
 
-SDK 0.1.1 提供 `@aibo/capability-runtime/host-tools`。新增 Agent 插件声明版本化目录与标准
+SDK 0.1.1 提供 `@aibolabs/capability-runtime/host-tools`。新增 Agent 插件声明版本化目录与标准
 response 操作后，只需适配原生工具注册或 MCP 配置；完整查询由宿主处理，无需新增品牌分支。
 见[宿主工具接入合同](../../aibo/docs/session-history-tool-design.md)和 Cursor 0.1.18 示例。
 

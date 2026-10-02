@@ -1,6 +1,6 @@
 {
   "name": "aibo-acp-template",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "files": [
@@ -10,8 +10,8 @@
     "README.md"
   ],
   "devDependencies": {
-    "@aibo/acp-adapter": "0.1.1",
-    "@aibo/capability-runtime": "0.1.1",
-    "@aibo/plugin-protocol": "0.1.0"
+    "@aibolabs/acp-adapter": "0.1.8",
+    "@aibolabs/capability-runtime": "0.1.8",
+    "@aibolabs/plugin-protocol": "0.1.8"
   }
 }

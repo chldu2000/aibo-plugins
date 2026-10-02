@@ -33,7 +33,7 @@
 
 踩坑依据：`6d00b8c` 发现真实冷启动超过原超时；`1fdb85f` 修复分帧、背压和事件终态；`fba1704` 修复强制取消及悬挂交互。
 
-- 0.2.0 起 ACP 传输、通用会话、配置解析和图片输入位于宿主 SDK 的 `@aibo/acp-adapter`（`../aibo/packages/acp-adapter`），测试在宿主的 `test/acp-adapter-*.test.mjs`；本仓库只保留 Cursor 扩展。
+- 0.2.0 起 ACP 传输、通用会话、配置解析和图片输入位于宿主 SDK 的 `@aibolabs/acp-adapter`（`../aibo/packages/acp-adapter`），测试在宿主的 `test/acp-adapter-*.test.mjs`；本仓库只保留 Cursor 扩展。
 - 修改 ACP 传输时覆盖分割 UTF-8、半行/多行、CRLF、ID 0、双向请求、背压、超限帧、畸形 JSON、EOF、stdin 错误和超时。stdout 仅承载协议，诊断写 stderr；缓冲区、写队列和诊断输出均需有界。
 - 根据真实操作耗时设置内部 deadline，并与 manifest 外层超时协调；冷启动/new/load 与长回合分别处理。超时或断连后结束所有 pending request，释放子进程、监听器、等待器和计时器。
 - 取消需结算待处理审批/提问，发送原生 cancel，在宽限期后强制关闭，并让回合以唯一 interrupted 终态结束。cancel accepted 只表示接收取消，不能据此认定清理已经完成。
@@ -62,7 +62,7 @@
 
 踩坑依据：`6486d29` 补充宿主安装探针；`000683f` 将捆绑 SDK 迁移为宿主 SDK。构建通过、安装通过与真实轮次成功是不同结论。
 
-- 使用本地目标宿主 SDK 和现有离线构建流程；SDK 作为开发依赖，运行时使用公开 `hostSdk` 入口。发布包不携带 `node_modules/@aibo`、宿主内部 helper、开发机路径或源码软链接；第三方运行依赖由插件自行携带。构建位置和命令以 README、package.json 和脚本为准。
+- SDK 从 npm 安装为开发依赖（各插件 lockfile 固定版本；`AIBO_SDK=local` 改用目标宿主源码中未发布的 SDK），运行时使用公开 `hostSdk` 入口；SDK 包版本等于宿主 SDK 版本，`hostSdk.min` 不低于所用版本。发布包不携带 `node_modules/@aibolabs`、宿主内部 helper、开发机路径或源码软链接；第三方运行依赖由插件自行携带。构建位置和命令以 README、package.json 和脚本为准。
 - 能力插件提供协议/语义数据；呈现插件使用受限视觉树和宿主动作 token。修改呈现资源时由构建工具生成清单长度与摘要，保留所声明 surface 的核心语义及默认继承。
 - 实现或构建变更完成后运行本仓库 `pnpm run verify`。若同时修改宿主，在宿主运行其 verify，并按变更补充相关 Rust 测试、原生探针或 UI 验证。纯文档修改检查内容依据、链接和 diff 即可。
 - 真实探针使用临时工作区和隔离桌面数据，恢复被改动的原生配置。验收记录写明宿主提交、插件/CLI/Node 版本、OS/架构、执行配置、命令、结果与未覆盖范围，日志脱敏。

@@ -13,19 +13,19 @@
 | 文件 | 职责 |
 | --- | --- |
 | `plugins/cursor/plugin.json` | provider、sessionControls、设置、操作 schema 与运行依赖 |
-| `plugins/cursor/worker.mjs` | 调用宿主 SDK 的 `serveAcpAgent` 并传入 `cursorExtension`；Runtime 2.1、invoke/control、可信调用上下文、响应封套与宿主工具接线由 `@aibo/acp-adapter/worker` 提供（0.2.2 起） |
+| `plugins/cursor/worker.mjs` | 调用宿主 SDK 的 `serveAcpAgent` 并传入 `cursorExtension`；Runtime 2.1、invoke/control、可信调用上下文、响应封套与宿主工具接线由 `@aibolabs/acp-adapter/worker` 提供（0.2.2 起） |
 | `plugins/cursor/cursor-session.mjs` | Cursor 扩展：`cursor_login` 认证、模式映射、recovery schema、`cursor/*` 请求与通知、命令和参数化模型的判定 |
-| 宿主 SDK `@aibo/acp-adapter/session` | 通用握手、new/load、模式与模型确认、回合、事件、审批和 recovery |
-| 宿主 SDK `@aibo/acp-adapter/transport` | 子进程、NDJSON、双向 RPC、背压、超时与释放 |
-| 宿主 SDK `@aibo/acp-adapter/config` | 原生模型参数归一化与不透明选择 ID |
-| 宿主 SDK `@aibo/acp-adapter/image-input` | 宿主图片描述符校验和 ACP 内容块 |
+| 宿主 SDK `@aibolabs/acp-adapter/session` | 通用握手、new/load、模式与模型确认、回合、事件、审批和 recovery |
+| 宿主 SDK `@aibolabs/acp-adapter/transport` | 子进程、NDJSON、双向 RPC、背压、超时与释放 |
+| 宿主 SDK `@aibolabs/acp-adapter/config` | 原生模型参数归一化与不透明选择 ID |
+| 宿主 SDK `@aibolabs/acp-adapter/image-input` | 宿主图片描述符校验和 ACP 内容块 |
 
 0.2.0 起通用部分由宿主 SDK 0.1.2 提供，Cursor 行为与 0.1.18 相同；传输、配置和图片输入的测试位于宿主仓库
 （`test/acp-adapter-*.test.mjs`），本仓库保留 Cursor 会话与清单测试，测试和探针脚本通过 `scripts/host-sdk.mjs` 加载目标宿主的 SDK。
 
 插件 ID 为 `dev.aibo.cursor`，session contribution 为 `dev.aibo.cursor.agent`。
 Manifest v2、Runtime 2.1、会话操作 1.0.0、settings v1、recovery v1、ACP protocolVersion 1 和插件 release 分别管理。
-公开 SDK 为宿主提供的 `@aibo/capability-runtime` / `@aibo/plugin-protocol` / `@aibo/acp-adapter`；不导入宿主私有 helper。
+公开 SDK 为宿主提供的 `@aibolabs/capability-runtime` / `@aibolabs/plugin-protocol` / `@aibolabs/acp-adapter`；不导入宿主私有 helper。
 
 每个会话运行时代际拥有独立 Cursor 子进程，prompt 串行执行。匹配绑定的活跃 Worker 可复用，
 元数据读取不要求重复 new/load。ACP 通道与 Worker 的宿主通道分离，stdout 仅承载协议，日志写 stderr。

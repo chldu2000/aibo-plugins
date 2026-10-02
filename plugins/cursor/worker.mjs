@@ -1,4 +1,4 @@
-import { serveAcpAgent } from '@aibo/acp-adapter/worker';
+import { serveAcpAgent } from '@aibolabs/acp-adapter/worker';
 import { additionalInstructionsFromSettings, cursorExtension } from './cursor-session.mjs';
 
 // Routing, host tools and lifecycle come from the host SDK; Cursor supplies only its extension.

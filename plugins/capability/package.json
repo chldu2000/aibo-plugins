@@ -1,6 +1,6 @@
 {
   "name": "aibo-capability-starter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "files": [
@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "@aibo/capability-runtime": "0.1.0",
-    "@aibo/plugin-protocol": "0.1.0"
+    "@aibolabs/capability-runtime": "0.1.8",
+    "@aibolabs/plugin-protocol": "0.1.8"
   }
 }

@@ -12,5 +12,9 @@
     "test": "node --import ./scripts/host-sdk.mjs --test test/*.test.mjs",
     "verify": "pnpm test && pnpm run build",
     "prepare:deps": "npm ci --prefix plugins/claude-code/runtime --omit=dev --omit=optional --ignore-scripts --no-bin-links --no-audit --no-fund --cache .npm-cache"
+  },
+  "devDependencies": {
+    "@aibolabs/presentation-tools": "0.1.0",
+    "typescript": "5.9.3"
   }
 }

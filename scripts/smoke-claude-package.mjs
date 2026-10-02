@@ -1,4 +1,5 @@
-// Packaged ACP + host Node + a controlled external CLI. No login or model prompts.
+// Packaged ACP + the Node running this script (Aibo resolves a local or downloaded Node; none is bundled)
+// + a controlled external CLI. No login or model prompts.
 import assert from 'node:assert/strict';
 import { readFile, readdir, mkdtemp, mkdir, writeFile, chmod, rm } from 'node:fs/promises';
 import { execFileSync, spawn } from 'node:child_process';
@@ -8,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { aiboRoot } from './host-sdk.mjs';
 
 const packagePath = path.resolve(process.argv[2]);
-const node = path.join(aiboRoot, 'src-tauri/resources/node-runtime', process.platform === 'win32' ? 'node.exe' : 'node');
+const node = process.execPath;
 const manifest = JSON.parse(await readFile(path.join(packagePath, 'plugin.json')));
 const config = JSON.parse(await readFile(path.join(packagePath, 'acp.json')));
 assert.ok(manifest.executableDependencies.some(item => item.name === 'claude' && item.required));

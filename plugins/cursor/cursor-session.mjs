@@ -1,4 +1,4 @@
-import { AcpSession, BASE_CAPABILITIES, object, pluginError } from '@aibo/acp-adapter/session';
+import { AcpSession, BASE_CAPABILITIES, object, pluginError } from '@aibolabs/acp-adapter/session';
 
 // The generic ACP session lives in the host SDK; this module keeps only Cursor behaviour.
 export const CAPABILITIES = [...BASE_CAPABILITIES, 'user-input.respond'];

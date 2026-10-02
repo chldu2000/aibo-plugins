@@ -1,0 +1,41 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@aibolabs/presentation-tools':
+        specifier: 0.1.0
+        version: 0.1.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+packages:
+
+  '@aibolabs/plugin-protocol@0.1.8':
+    resolution: {integrity: sha512-FXTAJLW5/tZsCSZ3xJAtS5iUpPMQVEjxu5eVREU9nolSRzX3JHBuWT/FnwUoN8ZPGJEfg3WtQ9cvBbdGFpzlvg==}
+
+  '@aibolabs/presentation-tools@0.1.0':
+    resolution: {integrity: sha512-HAPNh9WPGI1d2XSC4cXARqOGNU32XpUKdIcgRgWRWUsFpzh3xCTOlxvOtaOwkLYnRiS/zlJ95BH1jhopiJkzhQ==}
+    engines: {node: '>=22'}
+    hasBin: true
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+snapshots:
+
+  '@aibolabs/plugin-protocol@0.1.8': {}
+
+  '@aibolabs/presentation-tools@0.1.0':
+    dependencies:
+      '@aibolabs/plugin-protocol': 0.1.8
+
+  typescript@5.9.3: {}

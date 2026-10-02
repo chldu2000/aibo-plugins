@@ -1,7 +1,7 @@
 # ACP agent template
 
 Configuration-only session provider for an agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com).
-No code is needed: the host SDK's `@aibo/acp-adapter/worker` reads `plugin.json` and `acp.json`.
+No code is needed: the host SDK's `@aibolabs/acp-adapter/worker` reads `plugin.json` and `acp.json`.
 
 1. In `plugin.json`, set `pluginId`, `displayName` and `platforms`, and replace `my-acp-agent` in
    `executableDependencies` with the agent's executable. Rename the `org.example.acp-agent.*`

@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "org.example.acp-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "My ACP Agent",
   "description": "Starter provider for an ACP agent; edit acp.json and the dependency name.",
   "hostSdk": {
-    "min": "0.1.3",
+    "min": "0.1.8",
     "maxExclusive": "0.2.0"
   },
   "host": {

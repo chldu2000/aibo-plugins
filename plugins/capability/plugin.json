@@ -1,9 +1,9 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.starter.greeting",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "displayName": "Aibo starter greeting",
-  "hostSdk": { "min": "0.1.0", "maxExclusive": "0.2.0" },
+  "hostSdk": { "min": "0.1.8", "maxExclusive": "0.2.0" },
   "host": {
     "min": "0.1.0",
     "maxExclusive": "0.2.0"

@@ -4,7 +4,7 @@ This capability plugin starts the official Cursor CLI as `agent acp` and maps it
 This page describes release **0.2.3**. Implementation details and historical acceptance results live in the repository's
 [specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
 
-Release 0.2.2 runs on the host SDK's generic ACP Worker (`serveAcpAgent` from `@aibo/acp-adapter/worker`,
+Release 0.2.2 runs on the host SDK's generic ACP Worker (`serveAcpAgent` from `@aibolabs/acp-adapter/worker`,
 host SDK 0.1.3) with `cursorExtension`; routing, host tools and lifecycle are unchanged, now shared with
 configuration-only ACP plugins. It requires host SDK 0.1.3.
 
@@ -15,7 +15,7 @@ display labels back to native option IDs, rejecting ambiguous matches. This is a
 existing sessions retain their pinned release.
 
 Release 0.2.0 moves the generic ACP transport, session mapping, model configuration and image input
-into the host SDK's `@aibo/acp-adapter`; this plugin keeps only Cursor behaviour (authentication,
+into the host SDK's `@aibolabs/acp-adapter`; this plugin keeps only Cursor behaviour (authentication,
 mode mapping, recovery schema, `cursor/*` methods and command and model heuristics). Behaviour is
 unchanged from 0.1.18. It requires host SDK 0.1.2. Install it as a new release; existing sessions
 retain their pinned installation.

@@ -1,4 +1,4 @@
-// Registers the target host's SDK resolver, so plugin sources import @aibo/* exactly as the
+// Registers the target host's SDK resolver, so plugin sources import @aibolabs/* exactly as the
 // packaged Worker does at runtime. The host is ../aibo unless AIBO_ROOT points elsewhere.
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
