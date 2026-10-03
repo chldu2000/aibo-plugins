@@ -77,3 +77,9 @@ and does not prove login, permissions, real turns or desktop installation. See
 Release 0.4.1 declares `parameterScope: current-model`. Aibo selects the model first, refreshes its native parameters, and then offers reasoning strength. Only labels are displayed; parameter IDs remain opaque. Requires host SDK 0.1.7.
 
 Release 0.4.2 changes the runtime requirement: install Claude Code yourself. Install this as a new release; existing sessions remain bound to their original plugin and do not automatically switch engines.
+
+### 后台命令状态（0.4.5）
+
+需要提供 SDK 0.1.9 / `background-tasks.list` 合同的宿主。插件向 ACP 声明 AIR `asyncTasks`，将原生 `async_task_spawned`、`async_task_progress`、`async_task_state_update` 映射成后台命令快照，和子 Agent 历史分开。主回复结束后仍接收完成通知；宿主查看会话时每两秒读取状态。显示任务名称、命令、运行/完成/失败/停止/未知、摘要和输出路径；路径仅展示，不读取任意文件。
+
+重新建立原生连接后，历史运行中任务先显示“状态未知”，不能把 recovery 当进程存活证明。旧版本绑定、未暴露原生任务的 `nohup` / `&` 不会被推测为可追踪任务。当前 SDK 0.1.9 是协同开发版本，发布前使用 `AIBO_SDK=local pnpm run verify` 构建；npm 默认安装需等待相应 SDK 发布。

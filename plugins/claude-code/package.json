@@ -1,6 +1,6 @@
 {
   "name": "aibo-claude-code",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "type": "module",
   "files": [
@@ -9,11 +9,12 @@
     "worker.mjs",
     "launch-acp.mjs",
     "README.md",
-    "vendor"
+    "vendor",
+    "claude-background-tasks.mjs"
   ],
   "devDependencies": {
-    "@aibolabs/acp-adapter": "0.1.8",
-    "@aibolabs/capability-runtime": "0.1.8",
-    "@aibolabs/plugin-protocol": "0.1.8"
+    "@aibolabs/acp-adapter": "0.1.9",
+    "@aibolabs/capability-runtime": "0.1.9",
+    "@aibolabs/plugin-protocol": "0.1.9"
   }
 }

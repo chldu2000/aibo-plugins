@@ -1,11 +1,11 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.claude-code",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "displayName": "Claude Code",
   "description": "Claude Code sessions through the packaged ACP adapter. Requires a locally installed Claude Code CLI.",
   "hostSdk": {
-    "min": "0.1.8",
+    "min": "0.1.9",
     "maxExclusive": "0.2.0"
   },
   "host": {
@@ -696,6 +696,105 @@
           ],
           "timeoutMs": 120000,
           "idempotent": false
+        },
+        {
+          "id": "dev.aibo.claude-code.operation.background-tasks-list",
+          "capability": {
+            "id": "dev.aibo.claude-code.background-tasks.list",
+            "version": "1.0.0"
+          },
+          "effect": "read",
+          "permissions": [
+            "workspace.read"
+          ],
+          "timeoutMs": 15000,
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "outputSchema": {
+            "type": "object",
+            "required": [
+              "tasks",
+              "recovery",
+              "capabilities"
+            ],
+            "properties": {
+              "tasks": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "rootTurnId",
+                    "name",
+                    "command",
+                    "status",
+                    "activity"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 4000,
+                      "minLength": 1
+                    },
+                    "rootTurnId": {
+                      "type": "string",
+                      "maxLength": 4000,
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "command": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "activity": {
+                      "type": "string",
+                      "maxLength": 12000
+                    },
+                    "outputPath": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "status": {
+                      "enum": [
+                        "running",
+                        "completed",
+                        "failed",
+                        "stopped",
+                        "unknown"
+                      ]
+                    },
+                    "exitCode": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "recovery": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "capabilities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "idempotent": true
         }
       ]
     }
