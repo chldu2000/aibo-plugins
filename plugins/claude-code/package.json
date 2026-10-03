@@ -7,6 +7,7 @@
     "plugin.json",
     "acp.json",
     "worker.mjs",
+    "claude-commands.mjs",
     "launch-acp.mjs",
     "README.md",
     "vendor",

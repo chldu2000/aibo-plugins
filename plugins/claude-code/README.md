@@ -2,8 +2,8 @@
 
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
-The plugin uses `plugin.json`, `acp.json` and the common worker from the
-[ACP template](../acp-template/), running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.3**.
+The plugin uses `plugin.json`, `acp.json` and the configuration-driven worker from the
+[ACP template](../acp-template/), adding only skill classification for slash commands, running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.3**.
 
 ## Requirements
 
@@ -53,6 +53,9 @@ Not exposed:
 Negotiated from the adapter: create and resume sessions (resume uses `session/load` and needs a session that
 has received a prompt), text streaming, cancellation, approvals, questions, command directory, image input, model selection
 and reasoning effort. Claude Code does not expose context-window options, so that control is not offered.
+Command directory: ACP drops the SDK's `builtin` marker, so `claude-commands.mjs` files commands under Aibo's Skill
+category when the description ends in a skill origin (`(project)`, `(user)`, `(claude.ai sync)`) or the name is a
+plugin skill `<plugin>:<skill>` (MCP prompts, `mcp:…`, excluded). Skills bundled with Claude Code carry no marker and stay under Agent.
 Questions: Claude's AskUserQuestion appears as an Aibo question. Each question offers Claude's options and an "other" text
 answer. Multi-select questions accept one pick in Aibo; skipping a question is not available. The same channel carries
 forms from MCP servers and Claude's "retry with the fallback model?" prompt after a refusal. Retrying switches the model

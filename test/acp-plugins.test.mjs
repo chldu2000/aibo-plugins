@@ -11,7 +11,7 @@ import { acpAgentConfig, extensionFromConfig } from '@aibolabs/acp-adapter/worke
 const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
-// Configuration-driven ACP plugins; Claude Code also maps native background tasks.
+// Configuration-driven ACP plugins: acp.json plus the shared worker (Claude Code adds command classification).
 const plugins = ['acp-template', 'claude-code'];
 
 for (const name of plugins) {
