@@ -3,7 +3,7 @@
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
 The plugin uses `plugin.json`, `acp.json` and the configuration-driven worker from the
-[ACP template](../acp-template/), adding only skill classification for slash commands, running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.3**.
+[ACP template](../acp-template/), adding only skill classification for slash commands, running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.6**.
 
 ## Requirements
 
@@ -86,3 +86,14 @@ Release 0.4.2 changes the runtime requirement: install Claude Code yourself. Ins
 需要提供 SDK 0.1.9 / `background-tasks.list` 合同的宿主。插件向 ACP 声明 AIR `asyncTasks`，将原生 `async_task_spawned`、`async_task_progress`、`async_task_state_update` 映射成后台命令快照，和子 Agent 历史分开。主回复结束后仍接收完成通知；宿主查看会话时每两秒读取状态。显示任务名称、命令、运行/完成/失败/停止/未知、摘要和输出路径；路径仅展示，不读取任意文件。
 
 重新建立原生连接后，历史运行中任务先显示“状态未知”，不能把 recovery 当进程存活证明。旧版本绑定、未暴露原生任务的 `nohup` / `&` 不会被推测为可追踪任务。当前 SDK 0.1.9 是协同开发版本，发布前使用 `AIBO_SDK=local pnpm run verify` 构建；npm 默认安装需等待相应 SDK 发布。
+
+### 登录与授权（0.4.6）
+
+需要包含 `plugin_authentication_action` 和 manifest `authentication` 合同的 Aibo 构建；
+旧宿主不能安装带此字段的插件。SDK 仍为 0.1.9；仅满足 SDK 版本范围不代表宿主已支持此入口。
+
+在「插件与能力」选择 Claude Code 并启用插件后，点击「登录 / 授权」。Aibo 在系统 Terminal 中
+运行本机 `claude auth login`，按官方提示完成浏览器授权，再回到插件页点击「检查登录状态」
+（`claude auth status`）。CLI 报告已登录后返回原会话手动重试；状态检查不证明远端 token 仍有效，
+若继续提示 OAuth 过期，可重新授权。Aibo 不自动重发失败消息、不修改会话绑定、不保存凭据。
+当前登录终端入口支持 macOS。已打开终端不等于登录成功；外部终端中的流程需由用户完成或取消。

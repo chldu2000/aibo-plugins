@@ -1,7 +1,7 @@
 {
   "schema": "aibo.plugin-manifest/v2",
   "pluginId": "dev.aibo.claude-code",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "displayName": "Claude Code",
   "description": "Claude Code sessions through the packaged ACP adapter. Requires a locally installed Claude Code CLI.",
   "hostSdk": {
@@ -798,5 +798,17 @@
         }
       ]
     }
-  ]
+  ],
+  "authentication": {
+    "kind": "cli-terminal",
+    "executable": "claude",
+    "loginArgs": [
+      "auth",
+      "login"
+    ],
+    "statusArgs": [
+      "auth",
+      "status"
+    ]
+  }
 }
