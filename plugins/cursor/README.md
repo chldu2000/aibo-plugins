@@ -1,41 +1,33 @@
-# Aibo Cursor Agent
+# Cursor for Aibo
 
-This capability plugin starts the official Cursor CLI as `agent acp` and maps its ACP v1 session to Aibo Runtime 2.1.
-This page describes release **0.2.3**. Implementation details and historical acceptance results live in the repository's
-[specification](../../docs/cursor-acp-spec.md) and [validation record](../../docs/cursor-acp-validation.md).
+Use Cursor Agent in an Aibo workspace: stream replies and tool activity, choose native modes
+and models, respond to questions and approvals, and continue supported saved sessions.
+The plugin connects through the official Cursor CLI's `agent acp` interface.
 
-Release 0.2.2 runs on the host SDK's generic ACP Worker (`serveAcpAgent` from `@aibolabs/acp-adapter/worker`,
-host SDK 0.1.3) with `cursorExtension`; routing, host tools and lifecycle are unchanged, now shared with
-configuration-only ACP plugins. It requires host SDK 0.1.3.
+[Install](../../docs/installation.md) · [Compatibility](../../docs/installation.md#compatibility) · [Changes](CHANGELOG.md)
 
-Release 0.2.1 explicitly declares Cursor question support after the generic adapter stopped assuming
-that every ACP agent implements vendor questions. Resume is advertised only when the native agent
-confirms load support. It also maps native question prompts to host question text and converts selected
-display labels back to native option IDs, rejecting ambiguous matches. This is a new installation;
-existing sessions retain their pinned release.
+## Requirements
 
-Release 0.2.0 moves the generic ACP transport, session mapping, model configuration and image input
-into the host SDK's `@aibolabs/acp-adapter`; this plugin keeps only Cursor behaviour (authentication,
-mode mapping, recovery schema, `cursor/*` methods and command and model heuristics). Behaviour is
-unchanged from 0.1.18. It requires host SDK 0.1.2. Install it as a new release; existing sessions
-retain their pinned installation.
+- Current package: **0.2.4**; **macOS arm64** as declared in [plugin.json](plugin.json).
+- Aibo with host SDK **`>=0.1.8 <0.2.0`**, optional-session-feature contracts, provider
+  `sessionControls`, `agent-managed` execution, image attachments, and `aibo.host-tools/v1`.
+- Cursor CLI installed and authenticated with `agent login`.
+- A compatible Node.js 22+ runtime resolved by Aibo.
 
-Release 0.1.18 added the generic host-tool catalog through a private MCP stdio bridge, which needs
-the `aibo.host-tools/v1` host contract.
+Model/parameter behavior was checked against CLI `2026.09.15-d2fe57e`, and skill markers
+against `2026.09.18-9a7762b`. These are feature-specific baselines, not proof that every CLI version
+or model works. See the [specification](../../docs/cursor-acp-spec.md) and
+[validation record](../../docs/cursor-acp-validation.md).
 
-## Requirements and installation
+## Install and start a conversation
 
-- Node.js 22 or newer and Cursor CLI; run `agent login` before starting Aibo.
-- The manifest currently declares macOS arm64. Model/parameter integration was checked against CLI
-  `2026.09.15-d2fe57e`; skill description markers against `2026.09.18-9a7762b`. These are compatibility
-  baselines for those features, not proof that every CLI version or model works.
-- An Aibo build with host SDK `>=0.1.2 <0.2.0`, the shared optional-session-feature contracts,
-  provider `sessionControls`, `executionPolicy: "agent-managed"` (migration 0047), and the `image.input` attachment contract, and `aibo.host-tools/v1`.
-  The SDK range alone does not prove that the build contains these host features.
+1. Prepare the CLI and login above.
+2. Obtain a built package using the [build guide](../../docs/installation.md#build-from-source).
+3. Install and enable the emitted `cursor/` directory in Aibo's capability plugin manager.
+4. Create a new Cursor session, choose a supported mode/model, and send a short request.
 
-From the repository root, run `pnpm run verify`, then install and enable the emitted `cursor` directory
-in Aibo's capability plugin manager. Create a new Cursor session to use the installed release;
-existing sessions remain pinned to their original release. Aibo SDK packages are supplied by the host.
+Existing sessions retain their original provider release until a supported migration succeeds.
+Aibo supplies the runtime SDK; the source directory is not an installable build artifact.
 
 ## Modes and permissions
 
@@ -95,7 +87,7 @@ Cursor task metadata produces subagent cards, without invented `subagent.message
 Fast/service-tier, goal lifecycle, forks, remote session trees, branch timelines and thread snapshots remain undeclared.
 Opaque recovery data is not `session.snapshot`. Only the host-authorized tool catalog is bridged into Cursor MCP.
 
-## Validation commands
+## Development and validation
 
 Run these from the repository root in an appropriate local environment:
 
@@ -129,12 +121,10 @@ The plugin consumes the host catalog without hard-coding history tool names or d
 The host supplies `aibo_read_session` for references actually accepted in the current turn; it checks
 workspace trust and reference ownership on every page. Concatenate JSONL `content` fragments until
 `complete` is true. Limits and persisted-history scope are defined by the
-[host tool contract](../../../aibo/docs/session-history-tool-design.md).
+[host tool contract](https://github.com/chldu2000/aibo/blob/main/docs/session-history-tool-design.md).
 
 A separate, randomly named MCP server is passed to each ACP session. Credentials remain in the
 stdio child's environment and are recreated after restart; they are not saved in recovery.
 Cursor may discover MCP tools lazily on the first prompt, so open does not wait for `tools/list`.
 This does not configure global MCP servers or auto-approve unrelated tools. Host history reads do
 not enable Aibo Core filesystem/command tools. Old releases without the catalog continue normally.
-
-Release 0.2.3 requires host SDK 0.1.7 and declares `parameterScope: current-model`. Aibo selects a model before offering its reasoning and context options. Auto may have no parameter options.

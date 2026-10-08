@@ -1,22 +1,46 @@
-# Aibo Claude Code
+# Claude Code for Aibo
 
-Connects Claude Code sessions to Aibo through the ACP adapter
-[`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
-The plugin uses `plugin.json`, `acp.json` and the configuration-driven worker from the
-[ACP template](../acp-template/), adding skill classification, background task events and subscription quota mapping, running on host SDK 0.1.10's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.7**.
+Use Claude Code in an Aibo workspace with streamed replies, tool activity, plan approvals,
+questions, native background-task updates, and reported subscription quota.
+
+The plugin packages the JavaScript ACP adapter and launches your locally installed Claude Code.
+It uses [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp)
+and Aibo's configuration-driven ACP Worker. Current package: **0.4.7**.
+
+[Install](../../docs/installation.md) · [Compatibility](../../docs/installation.md#compatibility) · [Changes](CHANGELOG.md)
 
 ## Requirements
 
-- Aibo with host SDK **0.1.10** and a host-resolved Node runtime (this source change; verify your host build).
+- Aibo with host SDK **0.1.10**, a host-resolved Node runtime, and the matching authentication, background-task and quota contracts. Verify the actual host build; this is a source requirement.
+- macOS arm64, as declared in [plugin.json](plugin.json).
 - Install Claude Code **2.1.280 or later** separately and complete its login. Run `claude --version` to check the installation. Credentials remain owned by Claude; Aibo does not store them.
 - The required `claude` dependency must be discoverable by Aibo. The host includes common install locations such as `~/.local/bin` and Homebrew paths; custom locations must be on its PATH.
 - No separate Node, npm or global ACP installation is required by the plugin. It packages ACP 0.81.2 and the JavaScript SDK dependencies, **without the native Claude executable**.
 - Missing or older Claude installations block plugin activation through the host's dependency diagnostics. `launch-acp.mjs` resolves `claude` from the host PATH and sets ACP's `CLAUDE_CODE_EXECUTABLE`; it does not fall back to a bundled engine or inherit an unrelated override.
 - The minimum matches the tested SDK/CLI pair. Newer user-installed CLI releases are not pinned by the plugin and may require compatibility updates.
 
-Build dependencies are prepared with `pnpm prepare:deps`, then `pnpm verify` builds offline from the cache.
-`runtime/package-lock.json` pins the dependency graph. Build and preparation use `--omit=optional` to exclude the SDK's native platform packages; lockfile records for those optional packages remain for reproducibility. `vendor/` contains JS, package metadata, resources and licenses; type files and source maps are omitted. Packaging checks reject native Claude files and packages over 32 MiB.
-The host SDK stays external. Install the generated `dist/build-*/claude-code/`, not this source directory.
+## Install and start a conversation
+
+1. Install the required Claude Code CLI and complete its native login.
+2. Obtain the built package using the [source build guide](../../docs/installation.md#build-from-source).
+   This source combination uses `AIBO_SDK=local` and a matching Aibo checkout.
+3. Install the emitted `claude-code/` directory in Aibo's **插件与能力** settings, then enable it.
+4. Create a new Claude Code session, choose a supported model and mode, and send a short request.
+
+Existing sessions retain their original release binding until a supported migration succeeds.
+Use a new session to test a newly installed version. The package does not include model access.
+
+## Login and authentication
+
+In **插件与能力**, select and enable Claude Code, then choose **登录 / 授权**. Aibo opens the
+system Terminal with `claude auth login`. Complete the browser authorization and return to
+**检查登录状态**, which runs `claude auth status`. This terminal entry currently supports macOS
+and requires the host's `plugin_authentication_action` and manifest `authentication` contracts.
+
+After login, manually retry the failed request. Opening Terminal is not proof of login, and a
+local status check does not prove the remote token is still valid. Reauthorize if OAuth expiry
+continues. Aibo does not save Claude credentials, automatically resend failed messages, or change
+session bindings during login.
 
 ## Modes
 
@@ -61,7 +85,29 @@ answer. Multi-select questions accept one pick in Aibo; skipping a question is n
 forms from MCP servers and Claude's "retry with the fallback model?" prompt after a refusal. Retrying switches the model
 inside Claude, and Aibo's model selection is not updated to match.
 
-## Verification
+## Background tasks
+
+Native `async_task_spawned`, `async_task_progress`, and `async_task_state_update` events become
+background-command snapshots, separate from subagent history. Aibo can show the task name,
+command, running/completed/failed/stopped/unknown state, summary, and output path. Output paths
+are displayed, not used to read arbitrary files. Completion notifications can arrive after the
+main reply; the host polls task state every two seconds while viewing the session.
+
+After reconnection, historical running tasks first show an unknown state. Recovery data does
+not prove a process is alive. Commands launched with `nohup` or `&` are not inferred as tracked
+tasks when the native agent emits no task event. This requires the host's background-task contract.
+
+## Subscription quota
+
+Release 0.4.7 maps Claude's `_claude/rateLimit` events into 5-hour, weekly and available Opus/Sonnet weekly windows. Values are last observations, updated by events, not live account queries. Missing windows retain their prior observation within the current session runtime. At reset time the host shows unknown until new data arrives; a missing reset time is explicitly unknown. Reconnection clears observations. Extra paid usage is not included.
+
+Requires the matching host SDK 0.1.10 build; reinstalling the previous plugin or using an older host is insufficient. While this SDK remains unpublished, build with `AIBO_SDK=local pnpm run verify`. See the [quota specification](../../docs/claude-quota-spec.md) and [validation](../../docs/claude-quota-validation.md).
+
+## Development and validation
+
+Build dependencies are prepared with `pnpm prepare:deps`, then `AIBO_SDK=local pnpm run verify` builds offline from the cache.
+`runtime/package-lock.json` pins the dependency graph. Build and preparation use `--omit=optional` to exclude the SDK's native platform packages; lockfile records for those optional packages remain for reproducibility. `vendor/` contains JS, package metadata, resources and licenses; type files and source maps are omitted. Packaging checks reject native Claude files and packages over 32 MiB.
+The host SDK stays external. Install the generated `dist/build-*/claude-code/`, not this source directory.
 
 `CLAUDE_PLUGIN_PATH=/absolute/path/to/built/claude-code node scripts/probe-claude-code.mjs`
 runs the packaged worker with the host private Node and no global ACP directory against real Claude Code: a Plan session with
@@ -76,30 +122,3 @@ and checks the launcher's missing-CLI guidance. With a temporary fake external C
 and negotiates real ACP initialize. It rejects bundled native SDK packages. It sends no model requests
 and does not prove login, permissions, real turns or desktop installation. See
 [packaging validation](../../docs/claude-external-runtime-validation.md) for this change's evidence.
-
-Release 0.4.1 declares `parameterScope: current-model`. Aibo selects the model first, refreshes its native parameters, and then offers reasoning strength. Only labels are displayed; parameter IDs remain opaque. Requires host SDK 0.1.7.
-
-Release 0.4.2 changes the runtime requirement: install Claude Code yourself. Install this as a new release; existing sessions remain bound to their original plugin and do not automatically switch engines.
-
-### 后台命令状态（0.4.5）
-
-需要提供 SDK 0.1.9 / `background-tasks.list` 合同的宿主。插件向 ACP 声明 AIR `asyncTasks`，将原生 `async_task_spawned`、`async_task_progress`、`async_task_state_update` 映射成后台命令快照，和子 Agent 历史分开。主回复结束后仍接收完成通知；宿主查看会话时每两秒读取状态。显示任务名称、命令、运行/完成/失败/停止/未知、摘要和输出路径；路径仅展示，不读取任意文件。
-
-重新建立原生连接后，历史运行中任务先显示“状态未知”，不能把 recovery 当进程存活证明。旧版本绑定、未暴露原生任务的 `nohup` / `&` 不会被推测为可追踪任务。当前 SDK 0.1.9 是协同开发版本，发布前使用 `AIBO_SDK=local pnpm run verify` 构建；npm 默认安装需等待相应 SDK 发布。
-
-### 登录与授权（0.4.6）
-
-需要包含 `plugin_authentication_action` 和 manifest `authentication` 合同的 Aibo 构建；
-旧宿主不能安装带此字段的插件。SDK 仍为 0.1.9；仅满足 SDK 版本范围不代表宿主已支持此入口。
-
-在「插件与能力」选择 Claude Code 并启用插件后，点击「登录 / 授权」。Aibo 在系统 Terminal 中
-运行本机 `claude auth login`，按官方提示完成浏览器授权，再回到插件页点击「检查登录状态」
-（`claude auth status`）。CLI 报告已登录后返回原会话手动重试；状态检查不证明远端 token 仍有效，
-若继续提示 OAuth 过期，可重新授权。Aibo 不自动重发失败消息、不修改会话绑定、不保存凭据。
-当前登录终端入口支持 macOS。已打开终端不等于登录成功；外部终端中的流程需由用户完成或取消。
-
-## Subscription quota
-
-Release 0.4.7 maps Claude's `_claude/rateLimit` events into 5-hour, weekly and available Opus/Sonnet weekly windows. Values are last observations, updated by events, not live account queries. Missing windows retain their prior observation within the current session runtime. At reset time the host shows unknown until new data arrives; a missing reset time is explicitly unknown. Reconnection clears observations. Extra paid usage is not included.
-
-Requires the matching host SDK 0.1.10 build; reinstalling the previous plugin or using an older host is insufficient. While this SDK remains unpublished, build with `AIBO_SDK=local pnpm run verify`. See the [quota specification](../../docs/claude-quota-spec.md) and [validation](../../docs/claude-quota-validation.md).
