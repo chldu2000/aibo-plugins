@@ -68,5 +68,5 @@ Report the Aibo build, OS/architecture, plugin and CLI versions, reproduction st
 redacted error in an [issue](https://github.com/chldu2000/aibo-plugins/issues).
 See [Contributing](CONTRIBUTING.md) before changing an adapter or adding a new one.
 
-This repository does not currently provide a repository-wide LICENSE. Bundled dependencies
+This repository is licensed under the [MIT License](LICENSE). Bundled dependencies
 and third-party marks retain their respective licenses and ownership.

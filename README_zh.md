@@ -59,4 +59,4 @@ AIBO_SDK=local pnpm run verify
 遇到问题时，在 [issue](https://github.com/chldu2000/aibo-plugins/issues) 中提供 Aibo 构建、系统与架构、
 插件和 CLI 版本、复现步骤及脱敏错误。修改适配器或添加集成前，请阅读[贡献指南](CONTRIBUTING.md)。
 
-本仓库目前没有仓库级 LICENSE。打包依赖与第三方标识遵循各自的许可证和权利归属。
+本仓库采用 [MIT 许可证](LICENSE)。打包依赖与第三方标识遵循各自的许可证和权利归属。

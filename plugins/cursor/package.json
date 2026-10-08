@@ -1,6 +1,7 @@
 {
   "name": "aibo-cursor-agent",
   "version": "0.2.4",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "files": [
