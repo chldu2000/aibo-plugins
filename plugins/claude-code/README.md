@@ -3,11 +3,11 @@
 Connects Claude Code sessions to Aibo through the ACP adapter
 [`@agentclientprotocol/claude-agent-acp`](https://github.com/agentclientprotocol/claude-agent-acp).
 The plugin uses `plugin.json`, `acp.json` and the configuration-driven worker from the
-[ACP template](../acp-template/), adding only skill classification for slash commands, running on host SDK 0.1.7's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.6**.
+[ACP template](../acp-template/), adding skill classification, background task events and subscription quota mapping, running on host SDK 0.1.10's `serveAcpAgent`. A small launcher resolves the locally installed Claude executable. Release **0.4.7**.
 
 ## Requirements
 
-- Aibo with host SDK 0.1.7 and the bundled Node runtime (this source change; verify your host build).
+- Aibo with host SDK **0.1.10** and a host-resolved Node runtime (this source change; verify your host build).
 - Install Claude Code **2.1.280 or later** separately and complete its login. Run `claude --version` to check the installation. Credentials remain owned by Claude; Aibo does not store them.
 - The required `claude` dependency must be discoverable by Aibo. The host includes common install locations such as `~/.local/bin` and Homebrew paths; custom locations must be on its PATH.
 - No separate Node, npm or global ACP installation is required by the plugin. It packages ACP 0.81.2 and the JavaScript SDK dependencies, **without the native Claude executable**.
@@ -97,3 +97,9 @@ Release 0.4.2 changes the runtime requirement: install Claude Code yourself. Ins
 （`claude auth status`）。CLI 报告已登录后返回原会话手动重试；状态检查不证明远端 token 仍有效，
 若继续提示 OAuth 过期，可重新授权。Aibo 不自动重发失败消息、不修改会话绑定、不保存凭据。
 当前登录终端入口支持 macOS。已打开终端不等于登录成功；外部终端中的流程需由用户完成或取消。
+
+## Subscription quota
+
+Release 0.4.7 maps Claude's `_claude/rateLimit` events into 5-hour, weekly and available Opus/Sonnet weekly windows. Values are last observations, updated by events, not live account queries. Missing windows retain their prior observation within the current session runtime. At reset time the host shows unknown until new data arrives; a missing reset time is explicitly unknown. Reconnection clears observations. Extra paid usage is not included.
+
+Requires the matching host SDK 0.1.10 build; reinstalling the previous plugin or using an older host is insufficient. While this SDK remains unpublished, build with `AIBO_SDK=local pnpm run verify`. See the [quota specification](../../docs/claude-quota-spec.md) and [validation](../../docs/claude-quota-validation.md).
