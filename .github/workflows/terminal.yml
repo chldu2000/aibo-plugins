@@ -1,0 +1,29 @@
+name: Terminal plugin
+on:
+  workflow_dispatch:
+  push:
+    paths: ['plugins/terminal/**', 'scripts/build-terminal.mjs', 'test/terminal.test.mjs', '.github/workflows/terminal.yml']
+  pull_request:
+    paths: ['plugins/terminal/**', 'scripts/build-terminal.mjs', 'test/terminal.test.mjs', '.github/workflows/terminal.yml']
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15-intel, ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci --prefix plugins/terminal --ignore-scripts --no-audit --no-fund
+      - run: cargo test --locked --manifest-path plugins/terminal/backend/Cargo.toml
+      - run: node --test test/terminal.test.mjs
+      - run: node scripts/build-terminal.mjs
+      - run: tar -czf dist/terminal-${{ matrix.os }}.tar.gz -C dist terminal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terminal-${{ matrix.os }}-experimental
+          path: dist/terminal-${{ matrix.os }}.tar.gz

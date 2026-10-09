@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { packageRuntime } from './package-runtime.mjs';
+import { buildTerminal } from './build-terminal.mjs';
 const project = fileURLToPath(new URL('../', import.meta.url));
 const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const hostPath = (...parts) => path.join(aibo, ...parts);
@@ -82,7 +83,8 @@ export async function buildExternalPlugin() {
   const { buildPresentation } = await import(pathToFileURL(path.join(toolsDirectory,'build.mjs')).href);
   const presentationPath = path.join(root, 'presentation');
   await buildPresentation(path.join(project,'plugins/presentation/presentation.source.json'), presentationPath);
-  return {capability:capability.packagePath,cursor:cursor.packagePath,acpTemplate:acpTemplate.packagePath,claudeCode:claudeCode.packagePath,presentation:presentationPath};
+  const terminal = await buildTerminal({output:path.join(root,"terminal")});
+  return {terminal,capability:capability.packagePath,cursor:cursor.packagePath,acpTemplate:acpTemplate.packagePath,claudeCode:claudeCode.packagePath,presentation:presentationPath};
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

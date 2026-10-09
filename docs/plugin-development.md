@@ -167,3 +167,10 @@ ACP 和 SDK 的 JavaScript 依赖仍由插件携带，用户无需另装 Node、
 ## 顺序选择模型与参数
 
 Claude Code 0.4.1 与 Cursor 0.2.3 要求 hostSdk >=0.1.7，并使用 model.select 新输出变体声明 `parameterScope: current-model`。配置式插件写在 acp.json，代码插件写在 AcpExtension；完整合同及旧版本缺省行为见[模型配置](https://github.com/chldu2000/aibo/blob/main/docs/model-configuration.md)。升级后新建会话使用新 release，既有会话不重绑。
+
+## 交互式终端与 toolView
+
+`plugins/terminal/` 使用宿主 0.1.1 的独立 `toolView` 合同，在插件内部提供前端和原生后端。
+它是与既有语义/呈现插件分离的合同；参考 [插件说明](../plugins/terminal/README.md) 和
+[宿主合同](../../aibo/docs/tool-view-contract.md)。完整构建增加 `terminal/` 安装目录，首次验证前
+执行 `pnpm prepare:terminal`。终端编译需要 Rust，但安装产物的用户不需要编译工具或 Node。

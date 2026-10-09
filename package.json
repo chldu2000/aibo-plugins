@@ -12,7 +12,10 @@
     "probe:cursor:desktop": "node scripts/probe-cursor-desktop.mjs",
     "test": "node --import ./scripts/host-sdk.mjs --test test/*.test.mjs",
     "verify": "pnpm test && pnpm run build",
-    "prepare:deps": "npm ci --prefix plugins/claude-code/runtime --omit=dev --omit=optional --ignore-scripts --no-bin-links --no-audit --no-fund --cache .npm-cache"
+    "prepare:deps": "npm ci --prefix plugins/claude-code/runtime --omit=dev --omit=optional --ignore-scripts --no-bin-links --no-audit --no-fund --cache .npm-cache",
+    "build:terminal": "node scripts/build-terminal.mjs",
+    "prepare:terminal": "npm ci --prefix plugins/terminal --ignore-scripts --no-audit --no-fund",
+    "test:terminal": "cargo test --manifest-path plugins/terminal/backend/Cargo.toml && node --test test/terminal.test.mjs"
   },
   "devDependencies": {
     "@aibolabs/presentation-tools": "0.1.0",
