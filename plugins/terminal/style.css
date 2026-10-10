@@ -1,1 +1,21 @@
-:root{color-scheme:dark;font-family:system-ui,sans-serif;color:#e6e8ed;background:#15171b;font-size:13px}*{box-sizing:border-box}body{margin:0}main{height:100vh;display:flex;flex-direction:column}header,footer{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#202329}header{flex-wrap:wrap}nav{display:flex;gap:4px;flex:1;overflow:auto}button,input,textarea{font:inherit;color:inherit;background:#292d35;border:1px solid #434956;border-radius:4px;padding:6px 9px}button{cursor:pointer;white-space:nowrap}button:hover{background:#373d49}button[aria-selected=true]{border-color:#96bfff;background:#303e55}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #96bfff;outline-offset:2px}#panes{flex:1;min-height:0;position:relative}.terminal{height:100%;padding:6px 8px}#status{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#b9c2d0}#error{margin:0;padding:8px;color:#ffb4ab;max-height:100px;overflow:auto}dialog{max-width:min(520px,90vw);color:inherit;background:#202329;border:1px solid #596171;border-radius:8px;padding:20px}dialog::backdrop{background:#0008}dialog label{display:block;margin:12px 0}dialog input,dialog textarea{display:block;width:100%;margin-top:6px}dialog form>div{display:flex;justify-content:flex-end;gap:8px}h2{font-size:16px;margin-top:0}[hidden]{display:none!important}
+/* Fallbacks only: every colour resolves from the host's --aibo-* tokens (see docs/tool-view-contract.md). Square corners, hairline borders, one toolbar row. */
+:root{color-scheme:dark;font-family:system-ui,sans-serif;font-size:13px;--bg:var(--aibo-bg,#15171b);--text:var(--aibo-text,#e6e8ed);--muted:var(--aibo-muted,#b9c2d0);--surface:var(--aibo-surface,#202329);--hover:var(--aibo-surface-hover,#292d35);--border:var(--aibo-border,#434956);--focus:var(--aibo-focus,#96bfff);--danger:var(--aibo-danger-text,#ffb4ab);color:var(--text);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0}main{height:100vh;display:flex;flex-direction:column}
+header,footer{display:flex;align-items:center;gap:2px;background:var(--surface)}
+header{height:32px;padding:0 4px 0 0;border-bottom:1px solid var(--border)}footer{min-height:24px;padding:2px 8px;gap:6px;border-top:1px solid var(--border)}
+nav{display:flex;flex:1;min-width:0;height:100%;overflow:auto hidden;scrollbar-width:none}
+button,input,textarea{font:inherit;color:inherit;background:transparent;border:1px solid transparent;border-radius:0;padding:0 10px}
+button{cursor:pointer;white-space:nowrap;height:100%}button:hover{background:var(--hover)}
+nav button{border-bottom:2px solid transparent;color:var(--muted)}nav button[aria-selected=true]{color:var(--text);border-bottom-color:var(--focus)}
+button.icon{width:32px;padding:0;flex:none;color:var(--muted)}button.icon:hover{color:var(--text)}
+footer button{height:22px;border-color:var(--border)}
+input,textarea{background:var(--bg);border-color:var(--border);border-left-width:4px;padding:6px 9px}
+input:focus-visible,textarea:focus-visible{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 30%,transparent)}
+button:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+#panes{flex:1;min-height:0;position:relative}.terminal{height:100%;padding:6px 8px}
+#status{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
+#error{margin:0;padding:6px 8px;color:var(--danger);max-height:100px;overflow:auto;border-bottom:1px solid var(--border)}
+dialog{max-width:min(520px,90vw);color:inherit;background:var(--surface);border:1px solid var(--border);border-radius:0;padding:20px}dialog::backdrop{background:#0008}
+dialog label{display:block;margin:12px 0}dialog input,dialog textarea{display:block;width:100%;margin-top:6px}
+dialog form>div{display:flex;justify-content:flex-end;gap:8px}dialog form>div button{height:32px;border-color:var(--border)}
+h2{font-size:16px;margin-top:0}[hidden]{display:none!important}

@@ -69,3 +69,9 @@
 - 区分单测/假 ACP、打包 Worker smoke、真实 CLI、隔离宿主合同探针、真实桌面 UI。真实请求因 `resource_exhausted` 等失败时，只记录已经证实的阶段；配置确认不证明模型可调用或窗口容量极限。保留未通过验收项，不能用模拟成功勾选真实验收。
 - 发布内容变化时同步插件 manifest、package.json 及 Worker 实际上报版本；纯文档修改无需发布升版。同 ID/版本内容不同不能覆盖已安装 release。重建安装后用新会话验证新版本，同时验证旧会话保持原 release/contribution 绑定。
 - 发布说明同步最低宿主/CLI 要求、运行依赖、权限归属、恢复边界和已知限制。只有实际完成对应检查，才声称 Applications 启动、双皮肤、平台兼容或完整桌面交互已通过。
+
+## 工具视图（toolView）视觉约束
+
+`toolView` 前端必须遵循宿主[视觉合同](../aibo/docs/tool-view-contract.md#visual-contract)：颜色全部来自宿主推送的 `--aibo-*` 令牌，
+不写死配色；直角、1px 细边框；最多一行工具栏（标签＋图标按钮）；不放常驻的恢复入口。
+变更后在 ak-ui 与 Material 3 两种皮肤、深浅色、320px 与常规宽度下截图验收。

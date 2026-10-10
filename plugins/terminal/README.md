@@ -41,3 +41,7 @@ pnpm run build:terminal
 
 Unix 看护进程在后端结束后按 PTY 会话清理进程；Windows 使用关闭即清理的 Job Object。
 通过自行创建新系统会话、系统服务管理器或提权主动脱离终端的程序，不保证被终端关闭清理。
+
+界面遵循宿主的[视觉合同](../../../aibo/docs/tool-view-contract.md#visual-contract)：颜色来自宿主推送的
+`--aibo-*` 令牌（`style.css` 仅保留首屏回退），直角几何，单行工具栏（标签＋图标按钮）；后端断开时
+通过 `{type:"reload"}` 请求宿主重建视图，不在页面内放置常驻重载入口。

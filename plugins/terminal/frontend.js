@@ -4,11 +4,18 @@ import xtermStyle from '@xterm/xterm/css/xterm.css';
 const style=document.createElement('style');style.textContent=xtermStyle;document.head.append(style);
 const zh=navigator.language.startsWith('zh');
 const text=(cn,en)=>zh?cn:en;
-document.body.innerHTML=`<main><header><nav aria-label="${text('终端标签','Terminal tabs')}"></nav><button id="new">＋ ${text('新终端','New')}</button><button id="settings">${text('Shell 设置','Shell settings')}</button></header><p id="error" role="alert" hidden></p><section id="panes"></section><footer><span id="status"></span><button id="retry" hidden>${text('重新打开','Reopen')}</button><button id="close" hidden>${text('关闭终端','Close terminal')}</button></footer></main><dialog id="confirm"><form method="dialog"><p></p><div><button type="button" value="cancel">${text('取消','Cancel')}</button><button type="button" value="yes">${text('结束终端','End terminal')}</button></div></form></dialog><dialog id="config"><form><h2>${text('默认 Shell','Default shell')}</h2><p>${text('留空可跟随系统。设置仅影响新终端。','Follow the system or override it for new terminals.')}</p><label>${text('Shell 路径','Shell path')}<input name="path" autocomplete="off" spellcheck="false" placeholder="/bin/zsh"></label><label>${text('参数（JSON 数组）','Arguments (JSON array)')}<textarea name="args" spellcheck="false">[]</textarea></label><div><button type="button" id="reset">${text('恢复跟随系统','Follow system')}</button><button type="button" id="cancel">${text('取消','Cancel')}</button><button type="submit">${text('保存','Save')}</button></div></form></dialog>`;
+document.body.innerHTML=`<main><header><nav role="tablist" aria-label="${text('终端标签','Terminal tabs')}"></nav><button id="new" class="icon" title="${text('新终端','New terminal')}" aria-label="${text('新终端','New terminal')}">＋</button><button id="settings" class="icon" title="${text('Shell 设置','Shell settings')}" aria-label="${text('Shell 设置','Shell settings')}">⚙</button></header><p id="error" role="alert" hidden></p><section id="panes"></section><footer><span id="status"></span><button id="retry" hidden>${text('重新打开','Reopen')}</button><button id="reload" hidden>${text('重新加载','Reload')}</button><button id="close" hidden>${text('关闭终端','Close terminal')}</button></footer></main><dialog id="confirm"><form method="dialog"><p></p><div><button type="button" value="cancel">${text('取消','Cancel')}</button><button type="button" value="yes">${text('结束终端','End terminal')}</button></div></form></dialog><dialog id="config"><form><h2>${text('默认 Shell','Default shell')}</h2><p>${text('留空可跟随系统。设置仅影响新终端。','Follow the system or override it for new terminals.')}</p><label>${text('Shell 路径','Shell path')}<input name="path" autocomplete="off" spellcheck="false" placeholder="/bin/zsh"></label><label>${text('参数（JSON 数组）','Arguments (JSON array)')}<textarea name="args" spellcheck="false">[]</textarea></label><div><button type="button" id="reset">${text('恢复跟随系统','Follow system')}</button><button type="button" id="cancel">${text('取消','Cancel')}</button><button type="submit">${text('保存','Save')}</button></div></form></dialog>`;
 const $=selector=>document.querySelector(selector);
 for(const button of document.querySelectorAll('#confirm button')) button.onclick=()=>$('#confirm').close(button.value);
 let port, serial=0, active=null, stopped=false, settings=null;
 const pending=new Map(), entries=new Map(), cursors={};
+// Colours come from the host's design tokens (pushed over the port); style.css holds only fallbacks.
+function applyTheme(theme) {
+  if(!theme) return;
+  for(const [name,value] of Object.entries(theme)) if(name.startsWith('--aibo-')) document.documentElement.style.setProperty(name,value);
+  const css=getComputedStyle(document.documentElement);
+  for(const entry of entries.values()) entry.term.options.theme={background:css.getPropertyValue('--aibo-bg').trim()||'#15171b',foreground:css.getPropertyValue('--aibo-text').trim()||'#e6e8ed'};
+}
 function rpc(request) {
   if (!port || stopped) return Promise.reject(Error(text('终端连接已断开，请重新加载工具。','Disconnected. Reload the tool.')));
   const id=++serial;
@@ -37,7 +44,7 @@ function attach(info,replaying=false) {
   if(entry) {entry.info=info;status();return entry;}
   const pane=document.createElement('div');pane.className='terminal';pane.hidden=true;$('#panes').append(pane);
   const button=document.createElement('button');button.textContent=`${text('终端','Terminal')} ${info.id}`;button.setAttribute('role','tab');button.onclick=()=>select(info.id);$('nav').append(button);
-  const term=new Terminal({fontSize:13,fontFamily:'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',scrollback:3000,convertEol:false,allowProposedApi:false,theme:{background:'#15171b',foreground:'#e6e8ed'},cursorBlink:true,disableStdin:replaying});
+  const term=new Terminal({fontSize:13,fontFamily:'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',scrollback:3000,convertEol:false,allowProposedApi:false,theme:{background:getComputedStyle(document.documentElement).getPropertyValue('--aibo-bg').trim()||'#15171b',foreground:getComputedStyle(document.documentElement).getPropertyValue('--aibo-text').trim()||'#e6e8ed'},cursorBlink:true,disableStdin:replaying});
   const addon=new FitAddon();term.loadAddon(addon);term.open(pane);
   entry={info,pane,button,term,fit:addon,replaying,replayEnd:null};entries.set(info.id,entry);cursors[info.id]=0;
   term.onData(data=>{if(entry.info.running && !entry.replaying) void rpc({action:'input',id:info.id,data}).catch(error);});
@@ -68,8 +75,9 @@ async function read() {
       if(entry.replaying && output.cursor>=entry.replayEnd){entry.replaying=false;entry.term.options.disableStdin=false;if(entry.info.running)await rpc({action:"resize",id:info.id,cols:Math.min(500,entry.term.cols),rows:Math.min(500,entry.term.rows)});}
     }
     status();if(!stopped)setTimeout(read,50);
-  } catch(value) {error(value);stopped=true;}
+  } catch(value) {error(value);stopped=true;$('#reload').hidden=false;}
 }
+$('#reload').onclick=()=>port?.postMessage({type:'reload'});
 $('#new').onclick=()=>void create().catch(error);
 $('#close').onclick=()=>void closeCurrent().catch(error);
 $('#retry').onclick=()=>void (async()=>{await closeCurrent();await create();})().catch(error);
@@ -81,6 +89,7 @@ $('#config form').onsubmit=event=>{event.preventDefault();try {const form=event.
 new ResizeObserver(()=>{const entry=entries.get(active);if(entry)fit(entry);}).observe($('#panes'));
 window.addEventListener('message',async event=>{
   if(event.source!==parent || event.data?.type!=='aibo.tool-view.connect' || port || !event.ports[0])return;
-  port=event.ports[0];port.onmessage=({data})=>{const item=pending.get(data.id);if(!item)return;pending.delete(data.id);clearTimeout(item.timeout);if(data.error)item.reject(Error(data.error));else item.resolve(data.result);};port.start();
+  applyTheme(event.data.theme);
+  port=event.ports[0];port.onmessage=({data})=>{if(data.type==='theme'){applyTheme(data.theme);return;}const item=pending.get(data.id);if(!item)return;pending.delete(data.id);clearTimeout(item.timeout);if(data.error)item.reject(Error(data.error));else item.resolve(data.result);};port.start();
   try {const result=await rpc({action:'list'});settings=result.settings;for(const info of result.terminals)attach(info,true);if(result.fresh)await create();else select(entries.keys().next().value??null);void read();}catch(value){error(value);}
 });
