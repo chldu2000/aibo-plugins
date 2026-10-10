@@ -7,7 +7,7 @@
 将 Cursor、Claude Code 接入 [Aibo](https://github.com/chldu2000/aibo)，
 为兼容 ACP 的 Agent 创建集成，或从示例开始添加工具能力、定制界面。
 
-[安装插件](docs/installation.md) · [开发扩展](docs/plugin-development.md) · [文档导航](docs/README.md)
+[安装插件](docs/installation.md) · [开发扩展](docs/plugin-development_zh.md) · [文档导航](docs/README_zh.md)
 
 ## 找到需要的插件或开发起点
 
@@ -36,23 +36,23 @@
 
 ## 构建与开发
 
-需要 Node.js 22+、pnpm、npm 和 tar。测试使用匹配的 Aibo 源码，默认位置为相邻的 `../aibo`，
-先在宿主仓库安装依赖。当前源码组合使用：
+需要 Node.js 22+、pnpm、npm 和 tar，并在相邻位置（`../aibo`）检出匹配的 Aibo 源码且已安装依赖：
 
 ```sh
 pnpm install
 pnpm prepare:deps
-AIBO_SDK=local pnpm run verify
+pnpm build
 ```
 
-当前 Claude Code 插件需要宿主 SDK 0.1.10，宿主登记的已发布 SDK 基线为 0.1.8。
-`AIBO_SDK=local` 使用匹配宿主源码构建 SDK，安装目标也必须包含对应宿主功能。
-详细要求见[兼容与构建指南](docs/installation.md)。
+构建结束会打印可安装目录（位于新的 `dist/build-*` 下），安装这些目录而不是源码目录。
+`pnpm build --only=cursor,capability` 只构建部分插件，`pnpm verify` 运行测试和构建。
+终端插件需要 Rust，没有时会被跳过。插件所需的 SDK 版本都已发布，无需未发布的 SDK；
+`AIBO_SDK=local` 只用于验证尚未发布的 SDK 改动。
 
-每次构建在新的 `dist/build-*` 下输出五个安装目录。ACP 模板需要先改为真实 Agent 配置。
-运行时 SDK 由 Aibo 提供，插件所需的第三方依赖在构建时打包。
+ACP 模板需要先改为真实 Agent 配置。运行时 SDK 由 Aibo 提供，插件所需的第三方依赖在构建时打包。
 
-开发流程见[插件开发文档](docs/plugin-development.md)，接入 Agent 可以从 [ACP 模板](plugins/acp-template/README.md)开始。
+从[构建 Aibo 插件](docs/plugin-development_zh.md)开始：快速开始、“想做什么就复制哪个插件”的对照表，以及验证步骤。
+兼容性见[兼容与构建指南](docs/installation.md)。
 
 ## 参与完善
 

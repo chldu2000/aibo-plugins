@@ -11,13 +11,13 @@ specific adapter's current requirements. Start a compatible ACP integration from
 [template](plugins/acp-template/README.md), and keep vendor-specific behavior in its extension.
 Declare only implemented and verified capabilities.
 
-Use a matching host checkout. Follow [build instructions](docs/installation.md#build-from-source)
-and run `pnpm run verify` with the SDK source required by the revision. Runtime or UI changes also
+Use a matching host checkout. Follow the [quick start](docs/plugin-development.md#quick-start)
+and run `pnpm run verify`; add `AIBO_SDK=local` only when the revision needs an SDK that is not published yet. Runtime or UI changes also
 need the relevant native and desktop checks. Report which layers were tested; a fake ACP smoke
 is not proof of real account access or desktop behavior.
 
 For documentation-only changes, check content against manifests and current contracts, validate
-links, and review the diff. Keep the English and Chinese catalog aligned. Update the compatibility
+links, and review the diff. Keep the English and Chinese catalog and guides (`*_zh.md`) aligned. Update the compatibility
 table when changing package requirements, and put release history in the plugin changelog.
 
 If a change also modifies Aibo, follow its contracts and verification requirements. Do not include

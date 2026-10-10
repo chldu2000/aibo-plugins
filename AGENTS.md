@@ -4,7 +4,7 @@
 
 ## 开工先确定合同与验证范围
 
-1. 修改插件前阅读 [插件开发文档](docs/plugin-development.md) 的相关章节；修改 Cursor 时同时阅读 [插件说明](plugins/cursor/README.md)、[实现规格](docs/cursor-acp-spec.md) 和 [验证记录](docs/cursor-acp-validation.md)。按任务查阅 [验收 checklist](docs/cursor-acp-checklist.md)，已勾选项不能代替本次验证。
+1. 修改插件前阅读 [插件开发文档](docs/plugin-development_zh.md) 的相关章节；修改 Cursor 时同时阅读 [插件说明](plugins/cursor/README.md)、[实现规格](docs/cursor-acp-spec.md) 和 [验证记录](docs/cursor-acp-validation.md)。按任务查阅 [验收 checklist](docs/cursor-acp-checklist.md)，已勾选项不能代替本次验证。
 2. 确认目标宿主源码位置（默认 `../aibo`，可用 `AIBO_ROOT` 指定）、提交及插件 release。协议版本、SDK 版本、插件版本分别核对；新增合同需说明最低宿主要求，不能把本地提交当成已发布功能。
 3. 先找相关提交与测试，再修改实现。历史文档中的版本结论只适用于当时基线；冲突时对照目标宿主合同、当前实现和后续提交，更新受影响的说明。特别注意：旧文档的“Cursor 仅 Ask”“附件/推理/上下文不支持”已被后续版本部分或全部取代，不能照抄为永久限制。
 4. 在动手前确定本次需要证明的链路：原生输入输出、插件映射、打包 Worker、宿主协商或桌面交互。完成时报告各层实际证据和未验证项。
@@ -62,7 +62,7 @@
 
 踩坑依据：`6486d29` 补充宿主安装探针；`000683f` 将捆绑 SDK 迁移为宿主 SDK。构建通过、安装通过与真实轮次成功是不同结论。
 
-- SDK 从 npm 安装为开发依赖（各插件 lockfile 固定版本；`AIBO_SDK=local` 改用目标宿主源码中未发布的 SDK），运行时使用公开 `hostSdk` 入口；SDK 包版本等于宿主 SDK 版本，`hostSdk.min` 不低于所用版本。发布包不携带 `node_modules/@aibolabs`、宿主内部 helper、开发机路径或源码软链接；第三方运行依赖由插件自行携带。构建位置和命令以 README、package.json 和脚本为准。
+- SDK 从 npm 安装为开发依赖（各插件 lockfile 固定版本；`AIBO_SDK=local` 仅用于验证目标宿主源码中尚未发布的 SDK），运行时使用公开 `hostSdk` 入口；SDK 包版本等于宿主 SDK 版本，`hostSdk.min` 不低于所用版本。发布包不携带 `node_modules/@aibolabs`、宿主内部 helper、开发机路径或源码软链接；第三方运行依赖由插件自行携带。构建位置和命令以 README、package.json 和脚本为准。
 - 能力插件提供协议/语义数据；呈现插件使用受限视觉树和宿主动作 token。修改呈现资源时由构建工具生成清单长度与摘要，保留所声明 surface 的核心语义及默认继承。
 - 实现或构建变更完成后运行本仓库 `pnpm run verify`。若同时修改宿主，在宿主运行其 verify，并按变更补充相关 Rust 测试、原生探针或 UI 验证。纯文档修改检查内容依据、链接和 diff 即可。
 - 真实探针使用临时工作区和隔离桌面数据，恢复被改动的原生配置。验收记录写明宿主提交、插件/CLI/Node 版本、OS/架构、执行配置、命令、结果与未覆盖范围，日志脱敏。

@@ -41,26 +41,27 @@ installing a Git repository URL is not this installation workflow.
 
 ## Build and develop
 
-Use Node.js 22+, pnpm, npm, and tar. Tests need a matching Aibo source checkout, normally at
-`../aibo`, with its dependencies installed. For the current source combination:
+Use Node.js 22+, pnpm, npm, and tar, with a matching Aibo checkout next to this one (`../aibo`)
+that has its dependencies installed:
 
 ```sh
 pnpm install
 pnpm prepare:deps
-AIBO_SDK=local pnpm run verify
+pnpm build
 ```
 
-The current Claude Code plugin requires host SDK 0.1.10, while the host's recorded published
-SDK baseline is 0.1.8. The local SDK option builds against the matching host source;
-install the result into a desktop build with those host features. See
-[compatibility and build details](docs/installation.md).
+The build prints the installable directories (under a fresh `dist/build-*`). Install those, not the
+source folders. `pnpm build --only=cursor,capability` builds a subset; `pnpm verify` runs tests plus
+the build. The terminal plugin needs Rust and is skipped without it. All SDK versions the plugins
+require are published, so no unpublished SDK is needed; `AIBO_SDK=local` is only for verifying SDK
+changes that are not published yet.
 
-Build output contains five installation directories under a fresh `dist/build-*` directory.
 The ACP template must be configured for a real agent before it is usable. SDK code is supplied
 by Aibo at runtime; third-party dependencies needed by a plugin are packaged at build time.
 
-Start with the [development guide](docs/plugin-development.md) for packaging and verification,
-or the [ACP template](plugins/acp-template/README.md) for agent integration.
+Start with [Build an Aibo plugin](docs/plugin-development.md): a quick start, a table that maps
+what you want to build to the plugin to copy, and the verification steps. Compatibility is in
+[docs/installation.md](docs/installation.md).
 
 ## Help improve an integration
 

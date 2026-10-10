@@ -6,7 +6,7 @@
 
 固定路径为 Aibo → Runtime 2.1 Worker → `agent acp`，不自动降级到 SDK、headless 或 Cloud API。
 早期[能力调查](cursor-integration-research.md)保留背景，其 SDK 优先级建议不代表当前选型。
-宿主兼容要求及构建流程见[开发指南](plugin-development.md)，用户可见能力见[插件说明](../plugins/cursor/README.md)。
+宿主兼容要求及构建流程见[开发指南](plugin-development_zh.md)，用户可见能力见[插件说明](../plugins/cursor/README.md)。
 
 ## 1. 模块与协议边界
 

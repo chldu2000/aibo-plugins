@@ -23,7 +23,7 @@ and Aibo's configuration-driven ACP Worker. Current package: **0.4.7**.
 
 1. Install the required Claude Code CLI and complete its native login.
 2. Obtain the built package using the [source build guide](../../docs/installation.md#build-from-source).
-   This source combination uses `AIBO_SDK=local` and a matching Aibo checkout.
+   A plain `pnpm build` works: host SDK 0.1.10 and later are published on npm.
 3. Install the emitted `claude-code/` directory in Aibo's **插件与能力** settings, then enable it.
 4. Create a new Claude Code session, choose a supported model and mode, and send a short request.
 
@@ -101,11 +101,11 @@ tasks when the native agent emits no task event. This requires the host's backgr
 
 Release 0.4.7 maps Claude's `_claude/rateLimit` events into 5-hour, weekly and available Opus/Sonnet weekly windows. Values are last observations, updated by events, not live account queries. Missing windows retain their prior observation within the current session runtime. At reset time the host shows unknown until new data arrives; a missing reset time is explicitly unknown. Reconnection clears observations. Extra paid usage is not included.
 
-Requires the matching host SDK 0.1.10 build; reinstalling the previous plugin or using an older host is insufficient. While this SDK remains unpublished, build with `AIBO_SDK=local pnpm run verify`. See the [quota specification](../../docs/claude-quota-spec.md) and [validation](../../docs/claude-quota-validation.md).
+Requires the matching host SDK 0.1.10 build; reinstalling the previous plugin or using an older host is insufficient. This SDK is published, so the default `pnpm run verify` suffices. See the [quota specification](../../docs/claude-quota-spec.md) and [validation](../../docs/claude-quota-validation.md).
 
 ## Development and validation
 
-Build dependencies are prepared with `pnpm prepare:deps`, then `AIBO_SDK=local pnpm run verify` builds offline from the cache.
+Build dependencies are prepared with `pnpm prepare:deps`, then `pnpm run verify` builds from the cache.
 `runtime/package-lock.json` pins the dependency graph. Build and preparation use `--omit=optional` to exclude the SDK's native platform packages; lockfile records for those optional packages remain for reproducibility. `vendor/` contains JS, package metadata, resources and licenses; type files and source maps are omitted. Packaging checks reject native Claude files and packages over 32 MiB.
 The host SDK stays external. Install the generated `dist/build-*/claude-code/`, not this source directory.
 

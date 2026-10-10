@@ -16,5 +16,5 @@ resource sizes and hashes; install the generated package, not this source direct
 
 Edit the theme and [worker.js](worker.js). Return the restricted visual tree expected by the host,
 using its current action tokens. Returning null for an unimplemented control inherits the host control.
-See [the development guide](../../docs/plugin-development.md#修改呈现示例) and the
+See [the development guide](../../docs/plugin-development.md#modify-the-presentation-example) and the
 [host presentation contract](https://github.com/chldu2000/aibo/blob/main/docs/presentation-package.md).

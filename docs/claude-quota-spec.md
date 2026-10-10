@@ -40,7 +40,7 @@
 
 - cc 插件 0.4.7，需要包含本改动的宿主 SDK 0.1.10。旧宿主不可仅安装新插件获得本功能。
 - 共享外部工作台 0.2.3；外部 Material 3 / shadcn 包 0.4.2。
-- SDK 尚未发布时使用 `AIBO_SDK=local pnpm run verify` 构建插件。默认 registry 构建需等待对应 SDK 发布。
+- SDK 0.1.10 已发布，直接使用 `pnpm run verify` 构建；仅在验证尚未发布的 SDK 改动时才用 `AIBO_SDK=local`。
 - 只交付源码和本地产物，不发布、不替换用户正在使用的安装。
 - 不新增权限、网络请求或主动订阅额度查询。
 

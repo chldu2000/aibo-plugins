@@ -7,6 +7,8 @@ import path from 'node:path';
 import {createInterface} from 'node:readline';
 import {fileURLToPath} from 'node:url';
 const backend=new URL('../plugins/terminal/backend/',import.meta.url);
+// Rust is only needed for the terminal plugin; without it the other plugins can still be verified.
+try{execFileSync('cargo',['--version'],{stdio:'ignore'});}catch{console.log('# skipped: Rust (cargo) not found; run test:terminal after installing it');process.exit(0);}
 execFileSync('cargo',['build','--locked','--manifest-path',fileURLToPath(new URL('Cargo.toml',backend))],{stdio:'pipe'});
 const binary=fileURLToPath(new URL(`target/debug/aibo-terminal${process.platform==='win32'?'.exe':''}`,backend));
 async function fixture(t) {

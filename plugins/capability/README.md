@@ -16,5 +16,5 @@ The current manifest is the source of truth for [requirements](plugin.json); a s
 
 Start with [plugin.json](plugin.json) and [worker.ts](worker.ts). Rename plugin, contribution,
 capability, and operation IDs together. Keep the Worker handshake aligned with the manifest,
-and implement only declared operations. See [the development guide](../../docs/plugin-development.md#修改能力示例)
+and implement only declared operations. See [the development guide](../../docs/plugin-development.md#modify-the-capability-example)
 for permissions, cancellation, packaging, and verification.

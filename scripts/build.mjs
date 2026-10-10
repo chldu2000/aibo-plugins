@@ -12,9 +12,22 @@ const hostPath = (...parts) => path.join(aibo, ...parts);
 const sdkSource = process.env.AIBO_SDK === 'local' ? 'local' : 'registry';
 // Lockfiles resolve @aibolabs to the official registry; keep those URLs even when a mirror is configured.
 const registryArgs = ['--@aibolabs:registry=https://registry.npmjs.org/', '--replace-registry-host=never'];
+export const pluginNames = ['capability', 'cursor', 'acp-template', 'claude-code', 'presentation', 'terminal'];
+const hasCargo = () => { try { execFileSync('cargo', ['--version'], {stdio: 'ignore'}); return true; } catch { return false; } };
+
+/** `--only=cursor,capability` or AIBO_ONLY selects plugins; with no selection, every plugin builds (terminal only if Rust is installed). */
+export function selectPlugins(argv = process.argv.slice(2), env = process.env) {
+  const flag = argv.find(arg => arg.startsWith('--only='))?.slice('--only='.length) ?? env.AIBO_ONLY;
+  if (!flag) return pluginNames.filter(name => name !== 'terminal' || hasCargo());
+  const names = flag.split(',').map(name => name.trim()).filter(Boolean);
+  const unknown = names.filter(name => !pluginNames.includes(name));
+  if (!names.length || unknown.length) throw Error(`Unknown plugin ${unknown.join(', ') || '(none)'}; choose from ${pluginNames.join(', ')}`);
+  return names;
+}
 
 /** Build each plugin in a separate consumer with real SDK packages; no workspace links or app imports. */
-export async function buildExternalPlugin() {
+export async function buildExternalPlugin({only = selectPlugins()} = {}) {
+  const want = name => only.includes(name);
   await mkdir(path.join(project,'dist'),{recursive:true});
   const root=await mkdtemp(path.join(project,'dist','build-'));
   const cache=sdkSource==='local'?path.join(root,'npm-cache'):path.join(project,'.npm-cache');
@@ -61,33 +74,46 @@ export async function buildExternalPlugin() {
     execFileSync('tar',['-xzf',path.join(consumer,archive.filename),'-C',packagePath,'--strip-components=1']);
     return {packagePath,files:archive.files.map(file=>file.path)};
   }
-  const capability=await buildCapabilityPackage('capability',{compile:true,entry:'dist/worker.js'});
-  const cursor=await buildCapabilityPackage('cursor',{entry:'worker.mjs'});
-  const acpTemplate=await buildCapabilityPackage('acp-template',{entry:'worker.mjs'});
-  const claudeCode=await buildCapabilityPackage('claude-code',{entry:'worker.mjs'});
-  execFileSync(process.execPath, [path.join(project, 'scripts/smoke-claude-package.mjs'), claudeCode.packagePath], { cwd: project, stdio: 'inherit' });
-  const fakeBin=path.join(root,'fake-bin');await mkdir(fakeBin);
-  const fakeAgent=path.join(fakeBin,'agent');
-  await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);
-  execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin],{cwd:project,stdio:'inherit'});
-  const evidence={externalDirectory:true,sdkSource,offlineSdkTarballs:sdkSource==='local',compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability.files,cursor:cursor.files,acpTemplate:acpTemplate.files,claudeCode:claudeCode.files}};
+  const capability=want('capability')?await buildCapabilityPackage('capability',{compile:true,entry:'dist/worker.js'}):null;
+  const cursor=want('cursor')?await buildCapabilityPackage('cursor',{entry:'worker.mjs'}):null;
+  const acpTemplate=want('acp-template')?await buildCapabilityPackage('acp-template',{entry:'worker.mjs'}):null;
+  const claudeCode=want('claude-code')?await buildCapabilityPackage('claude-code',{entry:'worker.mjs'}):null;
+  if (claudeCode) execFileSync(process.execPath, [path.join(project, 'scripts/smoke-claude-package.mjs'), claudeCode.packagePath], { cwd: project, stdio: 'inherit' });
+  if (cursor) {
+    const fakeBin=path.join(root,'fake-bin');await mkdir(fakeBin);
+    const fakeAgent=path.join(fakeBin,'agent');
+    await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);
+    execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin],{cwd:project,stdio:'inherit'});
+  }
+  const evidence={externalDirectory:true,sdkSource,offlineSdkTarballs:sdkSource==='local',compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability?.files,cursor:cursor?.files,acpTemplate:acpTemplate?.files,claudeCode:claudeCode?.files}};
   await writeFile(path.join(root,'build-evidence.json'),JSON.stringify(evidence,null,2));
+  if (!want('presentation') && !want('terminal')) return {capability:capability?.packagePath,cursor:cursor?.packagePath,acpTemplate:acpTemplate?.packagePath,claudeCode:claudeCode?.packagePath};
   let toolsDirectory = path.join(project, 'node_modules/@aibolabs/presentation-tools');
-  if (sdkSource === 'local') {
+  if (want('presentation') && sdkSource === 'local') {
     const presentationTools = path.join(root, 'presentation-tools');
     await cp(hostPath('packages/presentation-tools'), presentationTools, {recursive:true});
     const toolsArchive = pack(presentationTools);
     toolsDirectory = path.join(root, 'tools'); await mkdir(toolsDirectory);
     execFileSync('tar', ['-xzf', path.join(presentationTools,toolsArchive.filename), '-C', toolsDirectory, '--strip-components=1']);
   }
-  const { buildPresentation } = await import(pathToFileURL(path.join(toolsDirectory,'build.mjs')).href);
-  const presentationPath = path.join(root, 'presentation');
-  await buildPresentation(path.join(project,'plugins/presentation/presentation.source.json'), presentationPath);
-  const terminal = await buildTerminal({output:path.join(root,"terminal")});
-  return {terminal,capability:capability.packagePath,cursor:cursor.packagePath,acpTemplate:acpTemplate.packagePath,claudeCode:claudeCode.packagePath,presentation:presentationPath};
+  let presentationPath;
+  if (want('presentation')) {
+    const { buildPresentation } = await import(pathToFileURL(path.join(toolsDirectory,'build.mjs')).href);
+    presentationPath = path.join(root, 'presentation');
+    await buildPresentation(path.join(project,'plugins/presentation/presentation.source.json'), presentationPath);
+  }
+  const terminal = want('terminal') ? await buildTerminal({output:path.join(root,"terminal")}) : undefined;
+  return {terminal,capability:capability?.packagePath,cursor:cursor?.packagePath,acpTemplate:acpTemplate?.packagePath,claudeCode:claudeCode?.packagePath,presentation:presentationPath};
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  try { console.log(JSON.stringify(await buildExternalPlugin(), null, 2)); }
+  try {
+    const only = selectPlugins();
+    if (!only.includes('terminal') && !process.argv.some(arg => arg.startsWith('--only='))) console.error('Skipping terminal: Rust (cargo) not found. Pass --only=terminal after installing Rust to build it.');
+    const built = await buildExternalPlugin({only});
+    console.log(JSON.stringify(built, null, 2));
+    console.error('\nInstall these directories in Aibo (not the source folders under plugins/):');
+    for (const [name, directory] of Object.entries(built)) if (directory) console.error(`  ${path.basename(directory).padEnd(13)} ${directory}`);
+  }
   catch (error) { console.error(error); process.exitCode = 1; }
 }

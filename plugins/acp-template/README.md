@@ -41,4 +41,4 @@ An invalid `acp.json` stops the worker before the Runtime handshake, so the host
 Follow the [build guide](../../docs/installation.md#build-from-source) using a matching Aibo checkout.
 Install and enable the emitted `acp-template/` directory in the capability plugin manager,
 then create a new session. Validate native login, a real prompt, cancellation, and supported
-recovery before claiming your integration is ready. See [development verification](../../docs/plugin-development.md#安装与验证).
+recovery before claiming your integration is ready. See [development verification](../../docs/plugin-development.md#install-and-verify).

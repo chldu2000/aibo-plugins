@@ -23,10 +23,10 @@ all required features or native dependencies are available. Platform declaration
 from desktop acceptance evidence. See the
 [host platform matrix](https://github.com/chldu2000/aibo/blob/main/docs/plugin-platform-support-matrix.md).
 
-The matching Aibo checkout currently contains SDK 0.1.10; its
+Host SDK 0.1.11 and every earlier release required here are published on npm, so a default
+build needs no unpublished SDK. The host's
 [release registry](https://github.com/chldu2000/aibo/blob/main/packages/plugin-host/sdk-releases.json)
-records 0.1.8 as the published baseline. Use the local SDK build path below for this source combination.
-Do not infer that an older installed Aibo contains newer source features.
+lists the published versions. Do not infer that an older installed Aibo contains newer source features.
 
 ## Install a prepared package
 
@@ -47,43 +47,20 @@ A new installation alone does not silently update every old conversation. Read t
 
 ## Build from source
 
-需要 Node.js 22+、pnpm、npm、tar，以及匹配的 Aibo 源码。建议两个仓库并排放置：
-
-```text
-workspace/
-  aibo/
-  aibo-plugins/
-```
-
-In the **aibo** root, prepare the host dependencies:
+Requires Node.js 22+, pnpm, npm and tar, and a side-by-side Aibo checkout (`../aibo`).
+需要 Node.js 22+、pnpm、npm、tar，以及并排放置的 Aibo 源码：
 
 ```sh
-pnpm install
+cd aibo && pnpm install
+cd ../aibo-plugins && pnpm install && pnpm prepare:deps
+pnpm build
 ```
 
-In the **aibo-plugins** root, prepare and verify the plugin build:
-
-```sh
-pnpm install
-pnpm prepare:deps
-AIBO_SDK=local pnpm run verify
-```
-
-`prepare:deps` downloads the lockfile-pinned Claude ACP runtime dependencies. The local SDK
-option packages SDK code from the matching host source for build-time use; it does not bundle
-the host SDK into the installable plugin. Initial dependency preparation needs registry access.
-
-For a different host checkout location:
-
-```sh
-AIBO_ROOT=/absolute/path/to/aibo AIBO_SDK=local pnpm run verify
-```
-
-When all SDK versions required by your chosen source revision have been published, the default
-`pnpm run verify` path resolves SDK development dependencies from npm. It is not the recommended
-path for the unpublished SDK requirement in this checkout.
-
-The build prints absolute paths to five installable directories under a new `dist/build-*`:
+The build prints absolute paths to the installable directories under a new `dist/build-*`.
+Install that directory, not `plugins/claude-code/` or another source directory. Full command table,
+`--only` selection, the terminal plugin (needs Rust) and `AIBO_SDK=local` for unpublished SDK changes:
+[Build an Aibo plugin](plugin-development.md#build-commands) ·
+[构建 Aibo 插件](plugin-development_zh.md#构建命令).
 
 | Directory | Contents and use |
 | --- | --- |
@@ -92,10 +69,10 @@ The build prints absolute paths to five installable directories under a new `dis
 | `acp-template/` | Template package; customize its agent configuration before real use |
 | `capability/` | Greeting operation and detail view example |
 | `presentation/` | Generated presentation manifest, theme and Worker |
+| `terminal/` | Interactive terminal tool view; built only when Rust is installed |
 
-Install the emitted directory, not `plugins/claude-code/` or another source directory.
-`verify` checks automated tests and packaged-worker behavior; it does not establish real model
-access or desktop acceptance. See [development verification](plugin-development.md#安装与验证).
+`pnpm verify` checks automated tests and packaged-worker behavior; it does not establish real model
+access or desktop acceptance. See [development verification](plugin-development.md#install-and-verify).
 
 ## Troubleshooting / 常见问题
 
@@ -103,9 +80,10 @@ access or desktop acceptance. See [development verification](plugin-development.
 | --- | --- |
 | Plugin cannot activate | Host and SDK ranges, declared OS/architecture, required CLI and Node diagnostics |
 | Agent opens but cannot answer | Native login, account/model access, quota, and the provider's actual error |
-| Claude plugin fails on an older Aibo build | Install a matching host build with SDK 0.1.10 and required host features |
+| Claude plugin fails on an older Aibo build | Install a host build with SDK >=0.1.10 and the required host features |
 | Installation cannot find an entrypoint or resource | Use the complete built directory; do not install source files individually |
 | Old conversation behaves like the previous version | Check its pinned release; create a new session to try the new installation |
-| SDK package version cannot be downloaded during build | Match the host source and use `AIBO_SDK=local` for an unpublished SDK |
+| SDK package version cannot be downloaded during build | Check that the version is published on registry.npmjs.org (a mirror can lag); use `AIBO_SDK=local` only for SDK changes that are not published yet |
+| `pnpm build` skips or fails on the terminal plugin | It needs Rust (`cargo`); install it, or build the others with `--only=` |
 
 Report unresolved issues with exact host/plugin/CLI versions and redacted diagnostics.
