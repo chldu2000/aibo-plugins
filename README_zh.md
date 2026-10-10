@@ -36,7 +36,7 @@
 
 ## 构建与开发
 
-需要 Node.js 22+、pnpm、npm 和 tar，并在相邻位置（`../aibo`）检出匹配的 Aibo 源码且已安装依赖：
+需要 Node.js 22+、pnpm、npm 和 tar，不需要检出 Aibo 源码：
 
 ```sh
 pnpm install
@@ -47,7 +47,7 @@ pnpm build
 构建结束会打印可安装目录（位于新的 `dist/build-*` 下），安装这些目录而不是源码目录。
 `pnpm build --only=cursor,capability` 只构建部分插件，`pnpm verify` 运行测试和构建。
 终端插件需要 Rust，没有时会被跳过。插件所需的 SDK 版本都已发布，无需未发布的 SDK；
-`AIBO_SDK=local` 只用于验证尚未发布的 SDK 改动。
+`AIBO_SDK=local`（或 `AIBO_ROOT`）只用于对照宿主检出，验证尚未发布的 SDK 或合同改动。
 
 ACP 模板需要先改为真实 Agent 配置。运行时 SDK 由 Aibo 提供，插件所需的第三方依赖在构建时打包。
 

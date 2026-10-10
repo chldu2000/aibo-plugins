@@ -5,10 +5,11 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { CAPABILITIES } from '../plugins/cursor/cursor-session.mjs';
+import { contract } from '../scripts/host.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
+const Ajv = createRequire(import.meta.url)('ajv/dist/2020').default;
 
 test('Cursor publishes native Agent Ask Plan modes with explicit provider-owned permissions', async () => {
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
@@ -27,7 +28,7 @@ test('Cursor publishes native Agent Ask Plan modes with explicit provider-owned 
 test('Cursor manifest qualifies for the host queue without claiming native steering', async () => {
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
   const packageManifest = await json(path.join(project, 'plugins/cursor/package.json'));
-  const contracts = await json(path.join(aibo, 'contracts/session-capabilities.v1.json'));
+  const contracts = await contract('session-capabilities.v1.json');
   const contribution = manifest.contributions.find(entry => entry.id === 'dev.aibo.cursor.agent');
 
   assert.equal(manifest.version, packageManifest.version);
@@ -53,11 +54,9 @@ test('Cursor manifest qualifies for the host queue without claiming native steer
 
 
 test('Cursor model operation validates host inputs and the release manifest', async () => {
-  const require = createRequire(path.join(aibo, 'package.json'));
-  const Ajv = require('ajv/dist/2020').default;
   const ajv = new Ajv({ strict: false, formats: { uri: true } });
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
-  const validate = ajv.compile(await json(path.join(aibo, 'contracts/plugin-manifest.v2.schema.json')));
+  const validate = ajv.compile(await contract('plugin-manifest.v2.schema.json'));
   assert.ok(validate(manifest), JSON.stringify(validate.errors));
   const operation = manifest.contributions[0].operations.find(operation => operation.capability.id === 'dev.aibo.cursor.model.select');
   assert.ok(operation);
@@ -71,8 +70,6 @@ test('Cursor model operation validates host inputs and the release manifest', as
 });
 
 test('Cursor parameter operations validate the host list/set contracts', async () => {
-  const require = createRequire(path.join(aibo, 'package.json'));
-  const Ajv = require('ajv/dist/2020').default;
   const ajv = new Ajv({ strict: false });
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
   for (const [kind, key] of [['reasoning', 'level'], ['context-window', 'contextWindow']]) {
@@ -90,8 +87,6 @@ test('Cursor parameter operations validate the host list/set contracts', async (
 });
 
 test('Cursor command directory accepts host inputs and requires the negotiated reply envelope', async () => {
-  const require = createRequire(path.join(aibo, 'package.json'));
-  const Ajv = require('ajv/dist/2020').default;
   const ajv = new Ajv({ strict: false });
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
   const operation = manifest.contributions[0].operations.find(operation => operation.capability.id === 'dev.aibo.cursor.command.list');
@@ -112,7 +107,7 @@ test('Cursor command directory accepts host inputs and requires the negotiated r
 
 test('every Cursor feature pins a supported host schema and never claims an unimplemented execution backend', async () => {
   const manifest = await json(path.join(project, 'plugins/cursor/plugin.json'));
-  const contracts = await json(path.join(aibo, 'contracts/session-features.v1.json'));
+  const contracts = await contract('session-features.v1.json');
   const operations = manifest.contributions[0].operations;
   const prefix = manifest.pluginId + '.';
   const features = operations.filter(op => op.capability.id.startsWith(prefix));

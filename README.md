@@ -41,8 +41,7 @@ installing a Git repository URL is not this installation workflow.
 
 ## Build and develop
 
-Use Node.js 22+, pnpm, npm, and tar, with a matching Aibo checkout next to this one (`../aibo`)
-that has its dependencies installed:
+Use Node.js 22+, pnpm, npm, and tar. No Aibo source checkout is needed:
 
 ```sh
 pnpm install
@@ -53,8 +52,8 @@ pnpm build
 The build prints the installable directories (under a fresh `dist/build-*`). Install those, not the
 source folders. `pnpm build --only=cursor,capability` builds a subset; `pnpm verify` runs tests plus
 the build. The terminal plugin needs Rust and is skipped without it. All SDK versions the plugins
-require are published, so no unpublished SDK is needed; `AIBO_SDK=local` is only for verifying SDK
-changes that are not published yet.
+require are published, so no unpublished SDK is needed; `AIBO_SDK=local` (or `AIBO_ROOT`) is only for
+verifying against a host checkout with SDK or contract changes that are not published yet.
 
 The ACP template must be configured for a real agent before it is usable. SDK code is supplied
 by Aibo at runtime; third-party dependencies needed by a plugin are packaged at build time.

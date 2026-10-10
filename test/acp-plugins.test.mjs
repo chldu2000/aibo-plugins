@@ -7,10 +7,11 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { acpAgentConfig, extensionFromConfig } from '@aibolabs/acp-adapter/worker';
+import { contract } from '../scripts/host.mjs';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
+const Ajv = createRequire(import.meta.url)('ajv/dist/2020').default;
 // Configuration-driven ACP plugins: acp.json plus the shared worker (Claude Code adds command classification).
 const plugins = ['acp-template', 'claude-code'];
 
@@ -18,16 +19,14 @@ for (const name of plugins) {
 const template = file => path.join(project, 'plugins', name, file);
 
 test(`${name} is a valid manifest whose operations match the host session contracts`, async () => {
-  const require = createRequire(path.join(aibo, 'package.json'));
-  const Ajv = require('ajv/dist/2020').default;
   const manifest = await json(template('plugin.json'));
-  const validate = new Ajv({ strict: false, formats: { uri: true } }).compile(await json(path.join(aibo, 'contracts/plugin-manifest.v2.schema.json')));
+  const validate = new Ajv({ strict: false, formats: { uri: true } }).compile(await contract('plugin-manifest.v2.schema.json'));
   assert.ok(validate(manifest), JSON.stringify(validate.errors));
   assert.equal(manifest.version, (await json(template('package.json'))).version);
   const provider = manifest.contributions[0];
   assert.equal(provider.executionPolicy, 'agent-managed');
-  const base = await json(path.join(aibo, 'contracts/session-capabilities.v1.json'));
-  const features = await json(path.join(aibo, 'contracts/session-features.v1.json'));
+  const base = await contract('session-capabilities.v1.json');
+  const features = await contract('session-features.v1.json');
   for (const operation of provider.operations) {
     const id = operation.capability.id;
     const shapes = id.startsWith('aibo.') ? [base.capabilities[id]] : features.capabilities[id.slice(`${manifest.pluginId}.`.length)];

@@ -1,49 +1,42 @@
 import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {isDeepStrictEqual} from 'node:util';
+import {contract, sdkPreload} from './host.mjs';
+import {jsonlRpc} from './jsonl-rpc.mjs';
 
 const packagePath = process.argv[2];
 const fakeBin = process.argv[3];
-if (!packagePath || !fakeBin) throw new Error('Usage: smoke-cursor.mjs <package> <fake-bin>');
+const consumer = process.argv[4];
+if (!packagePath || !fakeBin || !consumer) throw new Error('Usage: smoke-cursor.mjs <package> <fake-bin> <sdk-directory>');
 
-const aibo = path.resolve(process.env.AIBO_ROOT ?? fileURLToPath(new URL('../../aibo', import.meta.url)));
-const require = createRequire(path.join(aibo, 'package.json'));
+const require = createRequire(import.meta.url);
 const Ajv = require('ajv/dist/2020').default;
 const ajv = new Ajv({strict:false});
-const features = JSON.parse(await readFile(path.join(aibo,'contracts/session-features.v1.json'),'utf8'));
+const features = await contract('session-features.v1.json');
 
-const child = spawn(process.execPath,['--import',pathToFileURL(path.join(aibo,'packages/plugin-host/register.mjs')).href,path.join(packagePath,'worker.mjs')],{
+const child = spawn(process.execPath,['--import',sdkPreload(consumer),path.join(packagePath,'worker.mjs')],{
   cwd:packagePath,env:{...process.env,AIBO_TEST_MCP_CLIENT:pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/index.js')).href,AIBO_TEST_MCP_TRANSPORT:pathToFileURL(require.resolve('@modelcontextprotocol/sdk/client/stdio.js')).href,PATH:`${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`},stdio:['pipe','pipe','inherit'],
 });
-let nextId=0;
-const pending=new Map();
 const events=[];
-const send=(method,params)=>new Promise((resolve,reject)=>{
-  const id=nextId++;pending.set(id,{resolve,reject});child.stdin.write(`${JSON.stringify({jsonrpc:'2.0',id,method,params})}\n`);
-});
-createInterface({input:child.stdout,crlfDelay:Infinity}).on('line',line=>{
-  const message=JSON.parse(line);
+const {send,close}=jsonlRpc(child,message=>{
   if(message.method==='capability.event'){
     const event=message.params.event;events.push(event);
     if(event.type==='workspace.requested'){
       assert.equal(event.payload.tool,'aibo_read_session');
       const operation=manifest.contributions[0].operations.find(op=>op.capability.id==='aibo.session.tool.respond');
       void send('capability.control',{instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,invocationId:message.params.invocationId,capability:operation.capability.id,contractVersion:'1.0.0',operationId:operation.id,input:{requestId:event.payload.requestId,result:{source:'persisted-core',sessionId:'source',referenceCapturedAt:'now',readSnapshotId:'snapshot',readCapturedAt:'now',throughMessageId:null,historyScope:'fixture',format:'jsonl',content:'AIBO_HISTORY_MCP_OK',offset:0,nextCursor:null,complete:true}}});
-    }return;
+    }
   }
-  const waiter=pending.get(message.id);if(!waiter)return;pending.delete(message.id);
-  message.error?waiter.reject(new Error(message.error.message)):waiter.resolve(message.result);
 });
 const manifest=JSON.parse(await readFile(path.join(packagePath,'plugin.json'),'utf8'));
 const identity={protocol:'2.1',instanceId:'smoke-instance',generationId:'smoke-generation',installationId:'smoke-installation',pluginId:manifest.pluginId,pluginVersion:manifest.version,contributionId:'dev.aibo.cursor.agent',privateData:{path:packagePath,formatVersion:1}};
 const initialized=await send('capability.initialize',identity);
 if(initialized.protocol!=='2.1')throw new Error('Cursor package did not negotiate Runtime 2.1');
-const hostTools=JSON.parse(await readFile(path.join(aibo,'contracts/host-tools.v1.json'),'utf8'));
+const hostTools=await contract('host-tools.v1.json');
 const context={hostTools,turnId:null,workspaceId:'smoke-workspace',workspacePath:packagePath,originalCaller:{kind:'window',id:'smoke-window'},permissions:['workspace.read'],callChain:[]};
 const invoke=async(invocationId,capability,operationId,input,turnId=null)=>{
   const result=await send('capability.invoke',{invocationId,instanceId:identity.instanceId,generationId:identity.generationId,contributionId:identity.contributionId,capability,contractVersion:'1.0.0',operationId,scope:{kind:'session',id:'smoke-session'},deadlineUnixMs:Date.now()+30_000,context:{...context,turnId},input});
@@ -112,6 +105,5 @@ for (const control of manifest.contributions[0].sessionControls) {
   recovery = result.output.recovery;
   context.permissions = ['workspace.read'];
 }
-child.stdin.end();
-await new Promise((resolve,reject)=>{child.once('exit',code=>code===0?resolve():reject(new Error(`Cursor worker exited ${code}`)));setTimeout(()=>{child.kill('SIGKILL');reject(new Error('Cursor worker did not exit'));},3_000).unref();});
+await close();
 console.log('Cursor packaged worker smoke test passed');

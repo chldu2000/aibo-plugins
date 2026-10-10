@@ -47,12 +47,11 @@ A new installation alone does not silently update every old conversation. Read t
 
 ## Build from source
 
-Requires Node.js 22+, pnpm, npm and tar, and a side-by-side Aibo checkout (`../aibo`).
-需要 Node.js 22+、pnpm、npm、tar，以及并排放置的 Aibo 源码：
+Requires Node.js 22+, pnpm, npm and tar; no Aibo source checkout is needed.
+需要 Node.js 22+、pnpm、npm、tar，不需要 Aibo 源码：
 
 ```sh
-cd aibo && pnpm install
-cd ../aibo-plugins && pnpm install && pnpm prepare:deps
+cd aibo-plugins && pnpm install && pnpm prepare:deps
 pnpm build
 ```
 

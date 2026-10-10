@@ -4,11 +4,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { packageRuntime } from './package-runtime.mjs';
 import { buildTerminal } from './build-terminal.mjs';
+import { aiboRoot } from './host.mjs';
 const project = fileURLToPath(new URL('../', import.meta.url));
-const aibo = path.resolve(process.env.AIBO_ROOT ?? path.join(project, '../aibo'));
-const hostPath = (...parts) => path.join(aibo, ...parts);
 // SDK development dependencies come from the npm registry by default, pinned by each plugin's lockfile.
-// AIBO_SDK=local packs them from the Aibo sources instead, to build against unreleased SDK changes.
+// AIBO_SDK=local packs them from the Aibo sources instead (../aibo or AIBO_ROOT), to build against unreleased SDK changes.
+const hostPath = (...parts) => path.join(aiboRoot, ...parts);
 const sdkSource = process.env.AIBO_SDK === 'local' ? 'local' : 'registry';
 // Lockfiles resolve @aibolabs to the official registry; keep those URLs even when a mirror is configured.
 const registryArgs = ['--@aibolabs:registry=https://registry.npmjs.org/', '--replace-registry-host=never'];
@@ -39,6 +39,7 @@ export async function buildExternalPlugin({only = selectPlugins()} = {}) {
     await mkdir(protocol);await mkdir(sdk);
     for(const name of ['package.json','README.md']) await copyFile(hostPath('packages/plugin-protocol',name),path.join(protocol,name));
     execFileSync(process.execPath,[tsc,'-p',hostPath('packages/plugin-protocol/tsconfig.json'),'--outDir',path.join(protocol,'dist')]);
+    await cp(hostPath('contracts'),path.join(protocol,'contracts'),{recursive:true,filter:file=>!file.endsWith('.md')});
     const protocolTar=path.join(protocol,pack(protocol).filename);
     for(const name of ['package.json','README.md','runtime.mjs','stdio.mjs','runtime.d.ts','stdio.d.ts','host-tools.mjs','host-tools.d.ts','host-tools-mcp.mjs','host-tools-mcp.d.ts']) await copyFile(hostPath('packages/capability-runtime',name),path.join(sdk,name));
     const sdkTar=path.join(sdk,pack(sdk).filename);
@@ -72,18 +73,18 @@ export async function buildExternalPlugin({only = selectPlugins()} = {}) {
         || archive.unpackedSize > 32 * 1024 * 1024)) throw Error('Claude plugin must remain a JS adapter package without a bundled Claude executable');
     const packagePath=path.join(root,name);await mkdir(packagePath);
     execFileSync('tar',['-xzf',path.join(consumer,archive.filename),'-C',packagePath,'--strip-components=1']);
-    return {packagePath,files:archive.files.map(file=>file.path)};
+    return {packagePath,consumer,files:archive.files.map(file=>file.path)};
   }
   const capability=want('capability')?await buildCapabilityPackage('capability',{compile:true,entry:'dist/worker.js'}):null;
   const cursor=want('cursor')?await buildCapabilityPackage('cursor',{entry:'worker.mjs'}):null;
   const acpTemplate=want('acp-template')?await buildCapabilityPackage('acp-template',{entry:'worker.mjs'}):null;
   const claudeCode=want('claude-code')?await buildCapabilityPackage('claude-code',{entry:'worker.mjs'}):null;
-  if (claudeCode) execFileSync(process.execPath, [path.join(project, 'scripts/smoke-claude-package.mjs'), claudeCode.packagePath], { cwd: project, stdio: 'inherit' });
+  if (claudeCode) execFileSync(process.execPath, [path.join(project, 'scripts/smoke-claude-package.mjs'), claudeCode.packagePath, claudeCode.consumer], { cwd: project, stdio: 'inherit' });
   if (cursor) {
     const fakeBin=path.join(root,'fake-bin');await mkdir(fakeBin);
     const fakeAgent=path.join(fakeBin,'agent');
     await copyFile(path.join(project,'test/fixtures/fake-cursor-agent.mjs'),fakeAgent);await chmod(fakeAgent,0o755);
-    execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin],{cwd:project,stdio:'inherit'});
+    execFileSync(process.execPath,[path.join(project,'scripts/smoke-cursor.mjs'),cursor.packagePath,fakeBin,cursor.consumer],{cwd:project,stdio:'inherit'});
   }
   const evidence={externalDirectory:true,sdkSource,offlineSdkTarballs:sdkSource==='local',compiledWithoutDom:true,bundledRuntime:false,hostSdk:true,packages:{capability:capability?.files,cursor:cursor?.files,acpTemplate:acpTemplate?.files,claudeCode:claudeCode?.files}};
   await writeFile(path.join(root,'build-evidence.json'),JSON.stringify(evidence,null,2));

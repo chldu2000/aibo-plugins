@@ -7,17 +7,10 @@
 
 ## 60 秒跑通
 
-需要 Node.js 22+、pnpm、npm 和 tar。把两个仓库并排检出：
-
-```text
-workspace/
-  aibo/            # 宿主源码：插件测试和两个 smoke 检查会用到
-  aibo-plugins/    # 本仓库
-```
+需要 Node.js 22+、pnpm、npm 和 tar，不需要检出 Aibo 源码。
 
 ```sh
-cd aibo && pnpm install                 # 只需一次
-cd ../aibo-plugins && pnpm install
+cd aibo-plugins && pnpm install
 pnpm prepare:deps                       # 只需一次：Claude Code 运行依赖
 pnpm build
 ```
@@ -37,8 +30,8 @@ Install these directories in Aibo (not the source folders under plugins/):
 安装的永远是打印出来的目录，不是 `plugins/` 下的源码目录。同 ID、同版本的重建产物不会覆盖已安装的 release，
 见[发布与版本](#发布与版本)。
 
-构建 `capability`、`acp-template`、`presentation` 和 `terminal` 时不需要 `aibo` 仓库；
-`cursor`、`claude-code` 的 smoke 检查和 `pnpm test` 需要。
+`pnpm build` 和 `pnpm test` 都不读取宿主源码：SDK 来自 npm，测试所对照的宿主合同随 `@aibolabs/plugin-protocol` 发布。
+只有[对照未发布的宿主改动验证](#构建命令)和[维护者探针](#宿主探针)才需要宿主检出。
 
 ## 你想做什么
 
@@ -50,7 +43,7 @@ Install these directories in Aibo (not the source folders under plugins/):
 | 增加有自己界面和后端的交互面板 | [`terminal`](../plugins/terminal/README.md) | `frontend.js`、`style.css`、`backend/` | `pnpm test:terminal`（需要 Rust） |
 | 接入带厂商扩展方法的 Agent | [`cursor`](../plugins/cursor/README.md) | `worker.mjs`、扩展 | [Cursor 规格](cursor-acp-spec.md) |
 
-下面按类型展开。跨仓库链接指向 GitHub 上的宿主文档；使用 `AIBO_ROOT` 时，在你使用的宿主检出中核对合同。
+下面按类型展开。跨仓库链接指向 GitHub 上的宿主文档；对照宿主检出验证时，在该检出中核对合同。
 宿主私有 helper 和内置引擎只能作为行为参考，不能随插件导入。
 
 ## 构建命令
@@ -62,8 +55,7 @@ Install these directories in Aibo (not the source folders under plugins/):
 | 构建终端插件 | 安装 Rust 后执行 `pnpm prepare:terminal && pnpm build --only=terminal` |
 | 运行测试 | `pnpm test` |
 | 测试加完整构建 | `pnpm verify` |
-| 宿主在其他位置 | `AIBO_ROOT=/absolute/path/to/aibo pnpm verify` |
-| 针对未发布的 SDK 改动构建 | `AIBO_SDK=local pnpm verify` |
+| 对照宿主检出验证（未发布的 SDK 或合同） | `AIBO_SDK=local pnpm verify`（使用 `../aibo`）或 `AIBO_ROOT=/absolute/path/to/aibo pnpm verify` |
 
 不带 `--only` 时，只有找到 `cargo` 才会构建 `terminal`，否则提示后跳过。
 没有 Rust 时 `pnpm test` 会跳过终端后端测试，`pnpm test:terminal` 才运行它们。
@@ -71,9 +63,13 @@ Install these directories in Aibo (not the source folders under plugins/):
 **默认（npm SDK）。** 每个插件在独立副本中按 `package-lock.json` 执行 `npm ci`，`@aibolabs/*` 开发依赖来自
 `https://registry.npmjs.org/`（`.npmrc` 和构建参数固定了这一点，即使配置了镜像）。构建用本项目的 TypeScript
 编译能力示例，直接打包 Cursor 的 `.mjs`，并用 `@aibolabs/presentation-tools` 生成呈现资源（长度和 SHA-256 由工具生成，
-不手写）。日常开发，以及 SDK 版本都已发布的修订，都用这条路径。
+不手写）。两个打包 Worker 的 smoke 检查从该独立副本加载 SDK，`pnpm test` 从本仓库的 `node_modules` 加载，
+方式与 Aibo 运行时注入一致；manifest 和操作 schema 对照 `@aibolabs/plugin-protocol` 里的合同校验。
+日常开发，以及 SDK 版本都已发布的修订，都用这条路径。
 
-**`AIBO_SDK=local`。** 从宿主源码打包 SDK 与呈现工具，离线安装。只用于验证尚未发布的 SDK 改动；
+**`AIBO_SDK=local` / `AIBO_ROOT`。** 从宿主源码（`../aibo` 或 `AIBO_ROOT`）打包 SDK 与呈现工具，离线安装。
+测试和 smoke 检查改用宿主自己的 resolver 加载 SDK，并从该检出读取合同，这也是检查与特定宿主修订兼容性的方式。
+只用于验证尚未发布的 SDK 或合同改动；
 发布插件前，所依赖的 SDK 必须先发布，兼容表也要同步更新。
 
 安装产物不携带 `node_modules/@aibolabs`，运行时由宿主提供公开 SDK；使用 bundler 时把 SDK 入口设为 external。
@@ -202,6 +198,11 @@ ACP 和 SDK 的 JavaScript 依赖仍由插件携带，用户无需另装 Node、
 宿主安装不运行 npm；Worker 和 ACP 共用宿主私有 Node。当前只发布 darwin-arm64，其他平台尚未验收。
 升级依赖时更新 runtime package.json 和 lockfile，并验证与用户 CLI 版本的兼容性。
 0.4.0/0.4.1 的完整原生程序打包记录属于历史版本；旧会话继续绑定旧 release。
+
+### 宿主探针
+
+`probe-*` 脚本（例如 `pnpm probe:cursor:desktop`）是手动排查工具，不属于 `pnpm verify`。
+它们使用宿主的 Vite、Playwright、Node 运行时和插件 resolver，因此需要已安装依赖的宿主检出（`../aibo` 或 `AIBO_ROOT`）。
 
 ### 顺序选择模型与参数
 

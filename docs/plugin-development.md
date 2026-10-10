@@ -8,17 +8,10 @@ This guide is for people who build or change plugins. To only install and use on
 
 ## Quick start
 
-Requirements: Node.js 22+, pnpm, npm and tar. Check out the two repositories side by side:
-
-```text
-workspace/
-  aibo/            # host source: the plugin tests and two smoke checks use it
-  aibo-plugins/    # this repository
-```
+Requirements: Node.js 22+, pnpm, npm and tar. No Aibo source checkout is needed.
 
 ```sh
-cd aibo && pnpm install                 # once
-cd ../aibo-plugins && pnpm install
+cd aibo-plugins && pnpm install
 pnpm prepare:deps                       # once: Claude Code runtime dependencies
 pnpm build
 ```
@@ -39,8 +32,9 @@ packages are installed through **安装皮肤插件**. Always install the printe
 under `plugins/`. An installed release is not overwritten by a rebuild with the same ID and version: see
 [releases](#releases-and-versions).
 
-The build does not need the `aibo` checkout for `capability`, `acp-template`, `presentation` and
-`terminal`. The `cursor` and `claude-code` smoke checks do, and so does `pnpm test`.
+Neither `pnpm build` nor `pnpm test` reads host sources: the SDK comes from npm, and the host contracts the tests
+check against ship in `@aibolabs/plugin-protocol`. A host checkout is only needed to
+[verify against unpublished host changes](#build-commands) and for the [maintainer probes](#host-probes).
 
 ## What do you want to build?
 
@@ -53,7 +47,7 @@ The build does not need the `aibo` checkout for `capability`, `acp-template`, `p
 | Add an agent with vendor-specific methods | [`cursor`](../plugins/cursor/README.md) | `worker.mjs`, extension | [Cursor spec](cursor-acp-spec.md) |
 
 Sections below show each path in more detail. Cross-repository links point to the host
-documentation on GitHub; with `AIBO_ROOT`, check the contract in the host checkout you use.
+documentation on GitHub; when you verify against a host checkout, check the contract there.
 Host-private helpers and built-in engines are behavior references only; never import them into a plugin.
 
 ## Build commands
@@ -65,8 +59,7 @@ Host-private helpers and built-in engines are behavior references only; never im
 | Build the terminal plugin | install Rust, then `pnpm prepare:terminal && pnpm build --only=terminal` |
 | Run the tests | `pnpm test` |
 | Tests and a full build | `pnpm verify` |
-| Host checkout in another location | `AIBO_ROOT=/absolute/path/to/aibo pnpm verify` |
-| Build against unreleased SDK changes | `AIBO_SDK=local pnpm verify` |
+| Verify against a host checkout (unreleased SDK or contracts) | `AIBO_SDK=local pnpm verify` (uses `../aibo`) or `AIBO_ROOT=/absolute/path/to/aibo pnpm verify` |
 
 Without `--only`, `terminal` is built only when `cargo` is found; otherwise it is skipped with a notice.
 `pnpm test` skips the terminal backend tests without Rust; `pnpm test:terminal` runs them.
@@ -75,11 +68,15 @@ Without `--only`, `terminal` is built only when `cargo` is found; otherwise it i
 The `@aibolabs/*` development dependencies come from `https://registry.npmjs.org/` (pinned by `.npmrc` and the
 build flags, even when a mirror is configured). The build compiles the capability example with this project's
 TypeScript, bundles Cursor's `.mjs` directly, and builds presentation resources with `@aibolabs/presentation-tools`
-(length and SHA-256 are generated, not handwritten). Use this for daily work and for any revision whose SDK
-versions are already published.
+(length and SHA-256 are generated, not handwritten). The two packaged-worker smoke checks load the SDK from that
+isolated copy, and `pnpm test` from this repository's `node_modules`, the way Aibo injects it at runtime; manifests and
+operation schemas are checked against the contracts in `@aibolabs/plugin-protocol`. Use this for daily work and for
+any revision whose SDK versions are already published.
 
-**`AIBO_SDK=local`.** Packs the SDK and presentation tools from the host source and installs them offline.
-Use it only to verify SDK changes that are not published yet. The packages must still be published, and the
+**`AIBO_SDK=local` / `AIBO_ROOT`.** Packs the SDK and presentation tools from the host source (`../aibo`, or
+`AIBO_ROOT`) and installs them offline. Tests and smoke checks then load the SDK through the host's own resolver
+and read contracts from that checkout, which is also how to check compatibility with a specific host revision.
+Use it only to verify SDK or contract changes that are not published yet. The packages must still be published, and the
 compatibility table updated, before a release depends on them.
 
 Installable output never contains `node_modules/@aibolabs`; the host supplies the public SDK at runtime. When you
@@ -235,6 +232,12 @@ must not contain a native Claude executable, and the unpacked size must stay und
 Only darwin-arm64 is published now; other platforms are not accepted yet. When upgrading dependencies, update the
 runtime `package.json` and lockfile, and verify compatibility with the user's CLI. The complete native-program
 bundling of 0.4.0 / 0.4.1 is history; old sessions stay bound to the old release.
+
+### Host probes
+
+The `probe-*` scripts (for example `pnpm probe:cursor:desktop`) are manual diagnostics, not part of `pnpm verify`.
+They need a host checkout with its dependencies installed (`../aibo` or `AIBO_ROOT`), because they use its Vite,
+Playwright, Node runtime and plugin resolver.
 
 ### Sequential model and parameter selection
 
